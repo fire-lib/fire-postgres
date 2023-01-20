@@ -1,5 +1,4 @@
-
-use crate::table::column::{ColumnType, ColumnKind, ColumnData, FromDataError};
+use crate::table::column::FromDataError;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fmt;
@@ -7,7 +6,8 @@ use std::str::FromStr;
 use std::borrow::Cow;
 
 use rand::{RngCore, rngs::OsRng};
-use base64::{encode_config, decode_config_slice, URL_SAFE_NO_PAD, DecodeError};
+use base64::engine::{Engine, general_purpose::URL_SAFE_NO_PAD};
+use base64::DecodeError;
 
 use serde::{Serialize, Deserialize};
 use serde::ser::Serializer;
@@ -23,7 +23,6 @@ use serde::de::{Deserializer, Error};
 pub struct UniqueId([u8; 10]);
 
 impl UniqueId {
-
 	pub fn new() -> Self {
 		let secs_bytes = SystemTime::now()
 			.duration_since(UNIX_EPOCH)
@@ -52,15 +51,16 @@ impl UniqueId {
 	}
 
 	pub fn to_b64(&self) -> String {
-		encode_config(&self.0, URL_SAFE_NO_PAD)
+		URL_SAFE_NO_PAD.encode(&self.0)
 	}
 
 	// this panics if b64 has not a length of 14
 	pub fn parse_from_b64<T>(b64: T) -> Result<Self, DecodeError>
 	where T: AsRef<[u8]> {
 		let mut bytes = [0u8; 10];
-		decode_config_slice(b64, URL_SAFE_NO_PAD, &mut bytes)?;
-		Ok(Self(bytes))
+		URL_SAFE_NO_PAD.decode_slice_unchecked(b64, &mut bytes)
+			.map(|n| assert_eq!(n, bytes.len()))
+			.map(|_| Self(bytes))
 	}
 
 	pub fn from_bytes(bytes: [u8; 10]) -> Self {
@@ -80,7 +80,6 @@ impl UniqueId {
 	pub fn as_slice(&self) -> &[u8] {
 		&self.0
 	}
-
 }
 
 impl fmt::Debug for UniqueId {
@@ -111,56 +110,6 @@ impl From<DecodeError> for FromDataError {
 	}
 }
 
-/*
-faster insert even after b64 overhead
-insert_time: 884306ns
-select_time: 122143ns
-*/
-#[cfg(not(feature = "uid-as-bytea"))]
-impl ColumnType for UniqueId {
-
-	fn column_kind() -> ColumnKind {
-		ColumnKind::FixedText(14)
-	}
-
-	fn to_data(&self) -> ColumnData<'_> {
-		ColumnData::Text(self.to_b64().into())
-	}
-
-	fn from_data(data: ColumnData) -> Result<Self, FromDataError> {
-		match data {
-			ColumnData::Text(s) if s.len() == 14 => Ok(Self::parse_from_b64(s.as_str())?),
-			_ => Err(FromDataError::ExpectedType("char with 14 chars for unique id"))
-		}
-	}
-
-}
-
-/*
-slower on insert but database must be slower (there is no b64 overhead)
-insert_time: 909610ns
-select_time: 117526ns
-*/
-#[cfg(feature = "uid-as-bytea")]
-impl ColumnType for UniqueId {
-
-	fn column_kind() -> ColumnKind {
-		ColumnKind::Bytea
-	}
-
-	fn to_data(&self) -> ColumnData<'_> {
-		ColumnData::Bytea(self.as_slice())
-	}
-
-	fn from_data(data: ColumnData) -> Result<Self, FromDataError> {
-		match data {
-			ColumnData::Bytea(s) if s.len() == 10 => Ok(Self::from_slice_unchecked(s)),
-			_ => Err(FromDataError::ExpectedType("bytea with 10 bytes for unique id"))
-		}
-	}
-
-}
-
 // SERDE
 
 impl Serialize for UniqueId {
@@ -184,12 +133,69 @@ impl<'de> Deserialize<'de> for UniqueId {
 	}
 }
 
+#[cfg(feature = "protobuf")]
+mod protobuf {
+	use super::*;
+
+	use fire_protobuf::{
+		WireType,
+		encode::{
+			EncodeMessage, MessageEncoder, FieldOpt, SizeBuilder, EncodeError
+		},
+		decode::{DecodeMessage, FieldKind, DecodeError},
+		bytes::BytesWrite
+	};
+
+	impl EncodeMessage for UniqueId {
+		const WIRE_TYPE: WireType = WireType::Len;
+
+		fn is_default(&self) -> bool {
+			false
+		}
+
+		fn encoded_size(
+			&mut self,
+			field: Option<FieldOpt>,
+			builder: &mut SizeBuilder
+		) -> Result<(), EncodeError> {
+			self.0.encoded_size(field, builder)
+		}
+
+		fn encode<B>(
+			&mut self,
+			field: Option<FieldOpt>,
+			encoder: &mut MessageEncoder<B>
+		) -> Result<(), EncodeError>
+		where B: BytesWrite {
+			self.0.encode(field, encoder)
+		}
+	}
+
+	impl<'m> DecodeMessage<'m> for UniqueId {
+		const WIRE_TYPE: WireType = WireType::Len;
+
+		fn decode_default() -> Self {
+			Self::from_raw([0; 10])
+		}
+
+		fn merge(
+			&mut self,
+			kind: FieldKind<'m>,
+			is_field: bool
+		) -> Result<(), DecodeError> {
+			self.0.merge(kind, is_field)
+		}
+	}
+}
+
 
 #[cfg(test)]
 mod tests {
 
 	use super::*;
 	use serde_json::{Value, from_value, from_str};
+
+	// abcdefghijklmnopqrstuvwxyz
 
 	#[test]
 	fn serde_test() {

@@ -12,12 +12,12 @@ default = ["connect"]
 connect = ["tokio-postgres", "postgres-types", "postgres-protocol", "tokio"]
 hash = ["bcrypt"]
 show-sql = []
-uid-as-bytea = []
 crypto-cipher = ["crypto/cipher", "crypto/b64"]
 crypto-signature = ["crypto/signature", "crypto/b64"]
 crypto-token = ["crypto/b64"]
 json = ["serde_json"]
 email = ["email_address"]
+protobuf = ["fire-protobuf"]
 
 [dependencies]
 tokio-postgres = { version = "0.7", optional = true }
@@ -28,13 +28,14 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", optional = true }
 chrono = "0.4"
 bcrypt = { version = "0.9", optional = true }
-fire-postgres-derive = { version = "0.1", path = "./../fire-postgres-derive" }
+fire-postgres-derive = { version = "0.1", path = "../fire-postgres-derive" }
 rand = "0.8"
-base64 = "0.13"
+base64 = "0.21"
 fallible-iterator = "0.2"
 bytes = "1.0"
 crypto = { package = "fire-crypto", version = "0.3.2", optional = true }
 email_address = { version = "0.2", optional = true }
+fire-protobuf = { version = "0.1.2", optional = true }
 
 [dev-dependencies]
 serde_json = "1.0"

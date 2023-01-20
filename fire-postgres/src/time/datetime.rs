@@ -160,6 +160,68 @@ impl<'de> Deserialize<'de> for DateTime {
 	}
 }
 
+
+#[cfg(feature = "protobuf")]
+mod protobuf {
+	use super::*;
+
+	use fire_protobuf::{
+		WireType,
+		encode::{
+			EncodeMessage, MessageEncoder, FieldOpt, SizeBuilder, EncodeError
+		},
+		decode::{DecodeMessage, FieldKind, DecodeError},
+		bytes::BytesWrite
+	};
+
+	impl EncodeMessage for DateTime {
+		const WIRE_TYPE: WireType = WireType::Len;
+
+		fn is_default(&self) -> bool {
+			false
+		}
+
+		fn encoded_size(
+			&mut self,
+			field: Option<FieldOpt>,
+			builder: &mut SizeBuilder
+		) -> Result<(), EncodeError> {
+			self.to_microsecs_since_2000().encoded_size(field, builder)
+		}
+
+		fn encode<B>(
+			&mut self,
+			field: Option<FieldOpt>,
+			encoder: &mut MessageEncoder<B>
+		) -> Result<(), EncodeError>
+		where B: BytesWrite {
+			self.to_microsecs_since_2000().encode(field, encoder)
+		}
+	}
+
+	impl<'m> DecodeMessage<'m> for DateTime {
+		const WIRE_TYPE: WireType = WireType::Len;
+
+		fn decode_default() -> Self {
+			Self::from_microsecs_since_2000(0)
+		}
+
+		fn merge(
+			&mut self,
+			kind: FieldKind<'m>,
+			is_field: bool
+		) -> Result<(), DecodeError> {
+			let mut n = 0i64;
+			n.merge(kind, is_field)?;
+
+			*self = Self::from_microsecs_since_2000(n);
+
+			Ok(())
+		}
+	}
+}
+
+
 #[cfg(test)]
 mod tests {
 
