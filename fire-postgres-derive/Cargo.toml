@@ -1,0 +1,17 @@
+[package]
+name = "fire-postgres-derive"
+description = "Derive types for fire-postgres"
+version = "0.1.2"
+authors = ["Sören Meier <info@soerenmeier.ch>"]
+homepage = "https://fire-lib.com/"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[lib]
+proc_macro = true
+
+[dependencies]
+quote = "1.0"
+syn = { version = "1.0", features = ["extra-traits"] }
+proc-macro2 = "1.0"
+proc-macro-crate = "1.1"
