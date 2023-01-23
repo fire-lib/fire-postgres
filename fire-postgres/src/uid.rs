@@ -1,4 +1,5 @@
-use crate::table::column::FromDataError;
+
+use crate::table::column::{ColumnType, ColumnKind, ColumnData, FromDataError};
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::fmt;
@@ -110,6 +111,24 @@ impl From<DecodeError> for FromDataError {
 	}
 }
 
+impl ColumnType for UniqueId {
+
+	fn column_kind() -> ColumnKind {
+		ColumnKind::FixedText(14)
+	}
+
+	fn to_data(&self) -> ColumnData<'_> {
+		ColumnData::Text(self.to_b64().into())
+	}
+
+	fn from_data(data: ColumnData) -> Result<Self, FromDataError> {
+		match data {
+			ColumnData::Text(s) if s.len() == 14 => Ok(Self::parse_from_b64(s.as_str())?),
+			_ => Err(FromDataError::ExpectedType("char with 14 chars for unique id"))
+		}
+	}
+
+}
 // SERDE
 
 impl Serialize for UniqueId {
