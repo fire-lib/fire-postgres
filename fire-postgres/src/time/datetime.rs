@@ -16,7 +16,7 @@ use serde::ser::Serializer;
 use serde::de::{Deserializer, Error};
 
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DateTime(chrono::DateTime<Utc>);
 
 impl DateTime {
