@@ -6,6 +6,7 @@ authors = ["Sören Meier <info@soerenmeier.ch>"]
 homepage = "https://fire-lib.com/"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+rust-version = "1.64"
 
 [features]
 default = ["connect"]

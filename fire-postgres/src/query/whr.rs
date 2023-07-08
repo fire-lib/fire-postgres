@@ -120,7 +120,6 @@ macro_rules! short_whr_in_comp {
 		}
 		$crate::whr_log!($s, $p, $($tt)*);
 	);
-	// LIMIT
 }
 
 #[macro_export]
@@ -133,5 +132,23 @@ macro_rules! whr_log {
 		$s.space("OR");
 		$crate::whr_comp!($s, $p, $($tt)+);
 	);
+	($s:ident, $p:ident, LIMIT $value:tt $($tt:tt)*) => (
+		let v: usize = $value;
+		$s.space(format!("LIMIT {}", v));
+		$crate::whr_comp!($s, $p, $($tt)*);
+	);
 	($s:ident, $p:ident,) => ();
+}
+
+#[cfg(test)]
+mod tests {
+	use crate::UniqueId;
+
+	#[test]
+	fn test_limit() {
+		let id = &UniqueId::new();
+		let limit = 10;
+		let query = whr!(id LIMIT limit);
+		assert_eq!(query.sql.to_string().trim(), "\"id\" = $1 LIMIT 10");
+	}
 }

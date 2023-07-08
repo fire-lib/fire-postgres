@@ -109,7 +109,6 @@ pub struct Query<'a> {
 }
 
 impl<'a> Query<'a> {
-
 	pub fn new(sql: SqlBuilder, params: Vec<Param<'a>>) -> Self {
 		Self {sql, params}
 	}
@@ -161,7 +160,6 @@ impl<'a> Query<'a> {
 		}
 		v
 	}
-
 }
 
 
