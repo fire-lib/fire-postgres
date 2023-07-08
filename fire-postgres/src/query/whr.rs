@@ -146,6 +146,9 @@ macro_rules! whr_log {
 	($s:ident, $p:ident, LIMIT $($tt:tt)+) => (
 		$crate::whr_comp!($s, $p, LIMIT $($tt)+);
 	);
+	($s:ident, $p:ident, ORDER $($tt:tt)+) => (
+		$crate::whr_comp!($s, $p, ORDER $($tt)+);
+	);
 	($s:ident, $p:ident,) => ();
 }
 
@@ -165,10 +168,10 @@ mod tests {
 	fn test_order() {
 		let id = &UniqueId::new();
 		let limit = 10;
-		let query = whr!(id LIMIT limit ORDER "id" ASC);
+		let query = whr!(id ORDER "id" ASC LIMIT limit);
 		assert_eq!(
 			query.sql.to_string().trim(),
-			"\"id\" = $1 LIMIT 10  ORDER BY \"id\" ASC"
+			"\"id\" = $1 ORDER BY \"id\" ASC  LIMIT 10"
 		);
 		let query = whr!(ORDER "id" DESC);
 		assert_eq!(
