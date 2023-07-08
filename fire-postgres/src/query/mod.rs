@@ -1,4 +1,3 @@
-
 use crate::table::column::{ColumnKind, ColumnData, ColumnType};
 
 use std::fmt::Write;
@@ -34,7 +33,6 @@ pub struct SqlBuilder {
 }
 
 impl SqlBuilder {
-
 	pub fn new() -> Self {
 		Self { data: vec![] }
 	}
@@ -99,7 +97,6 @@ impl SqlBuilder {
 		}
 		out
 	}
-
 }
 
 #[derive(Debug, Clone)]

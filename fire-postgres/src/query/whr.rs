@@ -15,6 +15,7 @@
 #[macro_export]
 macro_rules! whr {
 	($($tt:tt)*) => ({
+		#[allow(unused_mut)]
 		let mut params = vec![];
 		let mut sql = $crate::query::SqlBuilder::new();
 		$crate::whr_comp!(sql, params, $($tt)*);
@@ -27,7 +28,17 @@ macro_rules! whr_comp {
 	($s:ident, $p:ident,) => ();
 	($s:ident, $p:ident, LIMIT $value:tt $($tt:tt)*) => ({
 		let v: usize = $value;
-		$s.space_after(format!("LIMIT {}", v));
+		$s.space(format!("LIMIT {}", v));
+		$crate::whr_comp!($s, $p, $($tt)*);
+	});
+	// value should not be a user input
+	($s:ident, $p:ident, ORDER $value:tt ASC $($tt:tt)*) => ({
+		$s.space(format!("ORDER BY \"{}\" ASC", $value));
+		$crate::whr_comp!($s, $p, $($tt)*);
+	});
+	// value should not be a user input
+	($s:ident, $p:ident, ORDER $value:tt DESC $($tt:tt)*) => ({
+		$s.space(format!("ORDER BY \"{}\" DESC", $value));
 		$crate::whr_comp!($s, $p, $($tt)*);
 	});
 	($s:ident, $p:ident, $id:ident $($tt:tt)*) => (
@@ -132,10 +143,8 @@ macro_rules! whr_log {
 		$s.space("OR");
 		$crate::whr_comp!($s, $p, $($tt)+);
 	);
-	($s:ident, $p:ident, LIMIT $value:tt $($tt:tt)*) => (
-		let v: usize = $value;
-		$s.space(format!("LIMIT {}", v));
-		$crate::whr_comp!($s, $p, $($tt)*);
+	($s:ident, $p:ident, LIMIT $($tt:tt)+) => (
+		$crate::whr_comp!($s, $p, LIMIT $($tt)+);
 	);
 	($s:ident, $p:ident,) => ();
 }
@@ -150,5 +159,21 @@ mod tests {
 		let limit = 10;
 		let query = whr!(id LIMIT limit);
 		assert_eq!(query.sql.to_string().trim(), "\"id\" = $1 LIMIT 10");
+	}
+
+	#[test]
+	fn test_order() {
+		let id = &UniqueId::new();
+		let limit = 10;
+		let query = whr!(id LIMIT limit ORDER "id" ASC);
+		assert_eq!(
+			query.sql.to_string().trim(),
+			"\"id\" = $1 LIMIT 10  ORDER BY \"id\" ASC"
+		);
+		let query = whr!(ORDER "id" DESC);
+		assert_eq!(
+			query.sql.to_string().trim(),
+			"ORDER BY \"id\" DESC"
+		);
 	}
 }
