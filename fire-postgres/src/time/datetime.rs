@@ -221,6 +221,31 @@ mod protobuf {
 	}
 }
 
+#[cfg(feature = "graphql")]
+mod graphql {
+	use super::*;
+
+	use juniper::{graphql_scalar, Value};
+
+	#[graphql_scalar]
+	impl<S> GraphQlScalar for DateTime
+	where S: ScalarValue {
+		fn resolve(&self) -> Value {
+			Value::scalar(self.to_string())
+		}
+
+		fn from_input_value(value: &InputValue) -> Option<DateTime> {
+			value.as_string_value()
+				.and_then(|s| DateTime::parse_from_iso8601(s.as_ref()).ok())
+		}
+
+		fn from_str<'a>(
+			value: ScalarToken<'a>
+		) -> juniper::ParseScalarResult<'a, S> {
+			<String as juniper::ParseScalarValue<S>>::from_str(value)
+		}
+	}
+}
 
 #[cfg(test)]
 mod tests {

@@ -1,7 +1,7 @@
 [package]
 name = "fire-postgres"
 description = "A async postgres driver focused on ease of use"
-version = "0.1.12"
+version = "0.1.13"
 authors = ["Sören Meier <info@soerenmeier.ch>"]
 homepage = "https://fire-lib.com/"
 edition = "2021"
@@ -10,15 +10,16 @@ rust-version = "1.64"
 
 [features]
 default = ["connect"]
-connect = ["tokio-postgres", "postgres-types", "postgres-protocol", "tokio"]
-hash = ["bcrypt"]
+connect = ["dep:tokio-postgres", "dep:postgres-types", "dep:postgres-protocol", "dep:tokio"]
+hash = ["dep:bcrypt"]
 show-sql = []
 crypto-cipher = ["crypto/cipher", "crypto/b64"]
 crypto-signature = ["crypto/signature", "crypto/b64"]
 crypto-token = ["crypto/b64"]
-json = ["serde_json"]
-email = ["email_address"]
-protobuf = ["fire-protobuf"]
+json = ["dep:serde_json"]
+email = ["dep:email_address"]
+protobuf = ["dep:fire-protobuf"]
+graphql = ["dep:juniper"]
 
 [dependencies]
 tokio-postgres = { version = "0.7", optional = true }
@@ -37,6 +38,7 @@ bytes = "1.0"
 crypto = { package = "fire-crypto", version = "0.3.2", optional = true }
 email_address = { version = "0.2", optional = true }
 fire-protobuf = { version = "0.1.2", optional = true }
+juniper = { version = "0.15", default-features = true, optional = true }
 
 [dev-dependencies]
 serde_json = "1.0"
