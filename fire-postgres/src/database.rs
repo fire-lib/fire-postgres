@@ -47,7 +47,7 @@ impl Database {
 			loop {
 				if let Some(con) = connection.take() {
 					if let Err(e) = con.await {
-						eprintln!("connection closed error: {}", e);
+						tracing::error!("connection closed error: {}", e);
 					}
 				}
 
@@ -56,7 +56,7 @@ impl Database {
 				let (client, con) = match connect(&config, NoTls).await {
 					Ok(o) => o,
 					Err(e) => {
-						eprintln!("connection error: {}", e);
+						tracing::error!("connection error: {}", e);
 						continue
 					}
 				};

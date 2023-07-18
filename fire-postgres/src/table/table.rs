@@ -18,9 +18,9 @@ use std::borrow::Borrow;
 // is thread safe
 // maybe should change to an inner?
 macro_rules! debug_sql {
-	($method:expr, $name:expr, $sql:expr) => (if cfg!(feature = "show-sql") {
-		println!("sql: {} {} with {}", $method, $name, $sql);
-	})
+	($method:expr, $name:expr, $sql:expr) => (
+		tracing::debug!("sql: {} {} with {}", $method, $name, $sql);
+	)
 }
 
 #[derive(Debug)]
