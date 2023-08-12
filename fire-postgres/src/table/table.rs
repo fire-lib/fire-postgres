@@ -287,7 +287,7 @@ where T: TableTemplate {
 		let sql = format!(
 			"UPDATE \"{}\" SET {}",
 			self.name,
-			query.sql().to_string()
+			query.sql()
 		);
 		debug_sql!("update", self.name, sql);
 		let params = query.to_sql_params();
@@ -311,7 +311,7 @@ where T: TableTemplate {
 		sql.space("WHERE");
 		sql.append(where_query.sql);
 
-		let sql = format!("UPDATE \"{}\" SET {}", self.name, sql.to_string());
+		let sql = format!("UPDATE \"{}\" SET {}", self.name, sql);
 		debug_sql!("update_full", self.name, sql);
 
 		let mut data = input.to_data();
@@ -334,7 +334,7 @@ where T: TableTemplate {
 		let sql = format!(
 			"DELETE FROM \"{}\" WHERE {}",
 			self.name,
-			where_query.sql.to_string()
+			where_query.sql
 		);
 		debug_sql!("delete_many", self.name, sql);
 		let params = where_query.to_sql_params();

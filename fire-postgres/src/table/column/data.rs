@@ -17,7 +17,7 @@ impl Text<'_> {
 	pub fn as_str(&self) -> &str {
 		match self {
 			Self::Owned(s) => s,
-			Self::Borrowed(b) => *b
+			Self::Borrowed(b) => b
 		}
 	}
 
@@ -163,7 +163,7 @@ pub enum ColumnData<'a> {
 	I64(i64),
 	I32(i32),
 	I16(i16),
-	Option(Option< Box<ColumnData<'a>> >),
+	Option(Option<Box<ColumnData<'a>>>),
 	TextArray(TextArray<'a>),
 	Bytea(&'a [u8])
 }
@@ -270,8 +270,7 @@ mod impl_postgres {
 	}
 
 	impl<'a> ToSql for ColumnData<'a> {
-
-		fn to_sql(&self, ty: &Type, out: &mut BytesMut) -> Result<IsNull, BoxedError> {
+		fn to_sql(&self, _ty: &Type, out: &mut BytesMut) -> Result<IsNull, BoxedError> {
 			match self {
 				ColumnData::Boolean(v) => ty::bool_to_sql(*v, out),
 				ColumnData::Text(v) => ty::text_to_sql(v.as_str(), out),
@@ -283,7 +282,7 @@ mod impl_postgres {
 				ColumnData::I32(v) => ty::int4_to_sql(*v, out),
 				ColumnData::I16(v) => ty::int2_to_sql(*v, out),
 				ColumnData::Option(o) => match o {
-					Some(v) => return v.to_sql(ty, out),
+					Some(v) => return v.to_sql(_ty, out),
 					None => return Ok(IsNull::Yes)
 				},
 				ColumnData::Bytea(v) => ty::bytea_to_sql(v, out),
@@ -304,11 +303,9 @@ mod impl_postgres {
 		accepts!();
 
 		to_sql_checked!();
-
 	}
 
 	impl<'a> FromSql<'a> for ColumnData<'a> {
-
 		fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, BoxedError> {
 			Ok(match ty {
 				&Type::BOOL => Self::Boolean(ty::bool_from_sql(raw)?),
@@ -359,7 +356,6 @@ mod impl_postgres {
 		}
 
 		accepts!();
-
 	}
 
 }

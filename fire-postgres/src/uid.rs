@@ -52,7 +52,7 @@ impl UniqueId {
 	}
 
 	pub fn to_b64(&self) -> String {
-		URL_SAFE_NO_PAD.encode(&self.0)
+		URL_SAFE_NO_PAD.encode(self.0)
 	}
 
 	// this panics if b64 has not a length of 14

@@ -1,6 +1,6 @@
 use crate::table::column::{ColumnKind, ColumnData, ColumnType};
 
-use std::fmt::Write;
+use std::fmt;
 use std::borrow::Cow;
 
 #[cfg(feature = "connect")]
@@ -71,31 +71,33 @@ impl SqlBuilder {
 	pub fn append(&mut self, mut sql: SqlBuilder) {
 		self.data.append(&mut sql.data);
 	}
+}
 
-	pub fn to_string(&self) -> String {
+impl fmt::Display for SqlBuilder {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let mut c = 0;
-		let mut out = String::new();
 		for d in &self.data {
 			match d {
 				SqlBuilderType::NoSpace(s) => {
-					out.push_str(s);
+					f.write_str(s)?;
 				},
 				SqlBuilderType::SpaceAfter(s) => {
-					write!(&mut out, "{} ", s).unwrap();
+					write!(f, "{} ", s)?;
 				},
 				SqlBuilderType::SpaceBefore(s) => {
-					write!(&mut out, " {}", s).unwrap();
+					write!(f, " {}", s)?;
 				},
 				SqlBuilderType::Space(s) => {
-					write!(&mut out, " {} ", s).unwrap();
+					write!(f, " {} ", s)?;
 				},
 				SqlBuilderType::Param => {
 					c += 1;
-					write!(&mut out, "${}", c).unwrap();
+					write!(f, "${}", c)?;
 				}
 			}
 		}
-		out
+
+		Ok(())
 	}
 }
 

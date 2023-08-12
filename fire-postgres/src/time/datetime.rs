@@ -60,7 +60,7 @@ impl DateTime {
 
 	pub fn to_microsecs_since_2000(&self) -> i64 {
 		let date = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
-		self.0.clone().signed_duration_since(date).num_microseconds()
+		self.0.signed_duration_since(date).num_microseconds()
 			.expect("value too large")
 	}
 
@@ -175,7 +175,7 @@ mod protobuf {
 	};
 
 	impl EncodeMessage for DateTime {
-		const WIRE_TYPE: WireType = WireType::Len;
+		const WIRE_TYPE: WireType = WireType::Varint;
 
 		fn is_default(&self) -> bool {
 			false
@@ -200,7 +200,7 @@ mod protobuf {
 	}
 
 	impl<'m> DecodeMessage<'m> for DateTime {
-		const WIRE_TYPE: WireType = WireType::Len;
+		const WIRE_TYPE: WireType = WireType::Varint;
 
 		fn decode_default() -> Self {
 			Self::from_microsecs_since_2000(0)

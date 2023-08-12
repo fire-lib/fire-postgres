@@ -111,7 +111,7 @@ impl ColumnKind {
 			Self::Varchar(v) => format!("({})", v),
 			Self::FixedText(v) => format!(" CHECK (length({})={})", name, v),
 			Self::Option(t) => t.value(name),
-			_ => format!("")
+			_ => String::new()
 		}
 	}
 
@@ -170,10 +170,7 @@ impl IndexKind {
 	}*/
 
 	pub fn is_none(&self) -> bool {
-		match self {
-			Self::None => true,
-			_ => false
-		}
+		matches!(self, Self::None)
 	}
 }
 

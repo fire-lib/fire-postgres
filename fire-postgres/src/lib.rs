@@ -1,3 +1,6 @@
+#![allow(clippy::tabs_in_doc_comments)]
+#![allow(clippy::never_loop)]
+#![allow(clippy::new_without_default)]
 
 #[cfg(feature = "connect")]
 pub mod database;
