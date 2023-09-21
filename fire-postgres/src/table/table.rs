@@ -2,6 +2,7 @@ use super::{Info, TableTemplate, ColumnData};
 use super::util::{
 	data_into_sql_params, rows_into_data, info_data_to_sql, quote
 };
+use super::column::ColumnType;
 
 use crate::database::SharedClient;
 use crate::query::{Query, UpdateParams, SqlBuilder};
@@ -268,6 +269,32 @@ where T: TableTemplate {
 		};
 
 		rows_into_data(rows)
+	}
+
+	pub async fn count_many<'a>(&self, where_query: Query<'a>) -> Result<u32> {
+		let mut query = Query::from_sql_str(
+			format!("SELECT COUNT(*) FROM \"{}\"", self.name)
+		);
+
+		if !where_query.is_empty() {
+			self.meta.info.validate_params(where_query.params())?;
+			query.sql.space("WHERE");
+			query.append(where_query);
+		}
+
+		let sql = query.sql().to_string();
+		debug_sql!("count_many", self.name, sql);
+		let params = query.to_sql_params();
+
+		let row = {
+			let cl = self.client.read().await;
+			cl.query_one(&sql, params.as_slice()).await?
+		};
+
+		let data: ColumnData = row.try_get(0)?;
+
+		u32::from_data(data)
+			.map_err(Into::into)
 	}
 
 	// update one

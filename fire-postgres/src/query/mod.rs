@@ -71,6 +71,10 @@ impl SqlBuilder {
 	pub fn append(&mut self, mut sql: SqlBuilder) {
 		self.data.append(&mut sql.data);
 	}
+
+	pub fn is_empty(&self) -> bool {
+		self.data.is_empty()
+	}
 }
 
 impl fmt::Display for SqlBuilder {
@@ -141,6 +145,10 @@ impl<'a> Query<'a> {
 
 	pub fn params(&self) -> &[Param] {
 		self.params.as_slice()
+	}
+
+	pub fn is_empty(&self) -> bool {
+		self.sql.is_empty() && self.params.is_empty()
 	}
 
 	pub fn params_data(&self) -> Vec<&ColumnData> {
