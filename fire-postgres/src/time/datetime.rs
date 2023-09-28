@@ -1,3 +1,4 @@
+use super::Date;
 use crate::table::column::{ColumnType, ColumnKind, ColumnData, FromDataError};
 
 use std::fmt;
@@ -15,7 +16,7 @@ use serde::{Serialize, Deserialize};
 use serde::ser::Serializer;
 use serde::de::{Deserializer, Error};
 
-
+/// A DateTime in the utc timezone
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DateTime(chrono::DateTime<Utc>);
 
@@ -73,18 +74,17 @@ impl DateTime {
 		self.0.to_rfc3339()
 	}
 
+	pub fn to_date(&self) -> Date {
+		self.0.date_naive().into()
+	}
+
 	pub fn parse_from_iso8601(s: &str) -> Result<Self, ParseError> {
 		Ok(Self(s.parse()?))
 	}
 
 	/// Returns None if the duration would overflow
 	pub fn abs_diff(&self, other: &Self) -> Option<StdDuration> {
-		let mut diff = self.0 - other.0;
-		if diff.num_seconds() < 0 {
-			diff = diff * -1;
-		}
-
-		diff.to_std().ok()
+		(self.0 - other.0).abs().to_std().ok()
 	}
 }
 

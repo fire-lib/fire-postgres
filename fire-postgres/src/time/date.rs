@@ -15,7 +15,7 @@ use serde::{Serialize, Deserialize};
 use serde::ser::Serializer;
 use serde::de::{Deserializer, Error};
 
-
+/// A date in utc
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Date(chrono::NaiveDate);
 
@@ -28,6 +28,10 @@ impl Date {
 		Self(naive)
 	}
 
+	pub fn now() -> Self {
+		DateTime::now().to_date()
+	}
+
 	pub fn raw(&self) -> &chrono::NaiveDate {
 		&self.0
 	}
@@ -36,6 +40,12 @@ impl Date {
 		&mut self.0
 	}
 
+	pub fn to_datetime(&self) -> DateTime {
+		let naive = self.0.and_hms_opt(0, 0, 0).unwrap();
+		chrono::DateTime::from_utc(naive, Utc).into()
+	}
+
+	#[deprecated(note = "use to_datetime instead")]
 	pub fn to_utc_datetime(&self) -> DateTime {
 		let naive = self.0.and_hms_opt(0, 0, 0).unwrap();
 		chrono::DateTime::from_utc(naive, Utc).into()
@@ -53,16 +63,9 @@ impl Date {
 		Self(pg_epoch + Duration::days(days as i64))
 	}
 
-	// pub fn to_microsecs_since_2000(&self) -> i64 {
-	// 	let date = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
-	// 	self.0.clone().signed_duration_since(date).num_microseconds()
-	// 		.expect("value too large")
-	// }
-
-	// pub fn from_microsecs_since_2000(secs: i64) -> Self {
-	// 	let date = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
-	// 	Self(date + Duration::microseconds(secs))
-	// }
+	pub fn try_sub(&self, other: &Date) -> Option<StdDuration> {
+		(self.0 - other.0).to_std().ok()
+	}
 
 	pub fn into_raw(self) -> chrono::NaiveDate {
 		self.0

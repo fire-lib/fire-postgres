@@ -1,12 +1,12 @@
 [package]
 name = "fire-postgres"
 description = "A async postgres driver focused on ease of use"
-version = "0.1.16"
+version = "0.1.17"
 authors = ["Sören Meier <info@soerenmeier.ch>"]
 homepage = "https://fire-lib.com/"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-rust-version = "1.64"
+rust-version = "1.66"
 
 [features]
 default = ["connect"]
