@@ -7,7 +7,7 @@ use std::ops::{Add, Sub};
 use std::time::{Duration as StdDuration};
 use std::str::FromStr;
 
-use chrono::Utc;
+use chrono::{Utc, TimeZone};
 use chrono::Duration;
 use chrono::format::ParseError;
 
@@ -42,13 +42,13 @@ impl Date {
 
 	pub fn to_datetime(&self) -> DateTime {
 		let naive = self.0.and_hms_opt(0, 0, 0).unwrap();
-		chrono::DateTime::from_utc(naive, Utc).into()
+		Utc.from_utc_datetime(&naive).into()
 	}
 
 	#[deprecated(note = "use to_datetime instead")]
 	pub fn to_utc_datetime(&self) -> DateTime {
 		let naive = self.0.and_hms_opt(0, 0, 0).unwrap();
-		chrono::DateTime::from_utc(naive, Utc).into()
+		Utc.from_utc_datetime(&naive).into()
 	}
 
 	pub fn to_days_since_1970(&self) -> i32 {

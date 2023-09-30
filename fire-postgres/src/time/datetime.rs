@@ -24,7 +24,7 @@ impl DateTime {
 	pub fn new(secs: i64, ns: u32) -> Self {
 		let naive = NaiveDateTime::from_timestamp_opt(secs, ns)
 			.expect("secs and ns out of range");
-		Self(chrono::DateTime::from_utc(naive, Utc))
+		Self(Utc.from_utc_datetime(&naive))
 	}
 
 	pub fn now() -> Self {
