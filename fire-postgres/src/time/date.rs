@@ -45,12 +45,6 @@ impl Date {
 		Utc.from_utc_datetime(&naive).into()
 	}
 
-	#[deprecated(note = "use to_datetime instead")]
-	pub fn to_utc_datetime(&self) -> DateTime {
-		let naive = self.0.and_hms_opt(0, 0, 0).unwrap();
-		Utc.from_utc_datetime(&naive).into()
-	}
-
 	pub fn to_days_since_1970(&self) -> i32 {
 		let pg_epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
 
