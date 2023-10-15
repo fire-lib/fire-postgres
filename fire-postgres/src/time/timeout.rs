@@ -22,6 +22,12 @@ impl Timeout {
 		SystemTime::now() > self.inner
 	}
 
+	/// Returns None if the Duration is negative
+	pub fn remaining(&self) -> Option<Duration> {
+		self.inner.duration_since(SystemTime::now())
+			.ok()
+	}
+
 	/// returns the time from UNIX_EPOCH
 	pub fn as_secs(&self) -> u64 {
 		self.inner.duration_since(SystemTime::UNIX_EPOCH)
