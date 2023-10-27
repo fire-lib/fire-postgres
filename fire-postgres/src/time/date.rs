@@ -17,6 +17,9 @@ use serde::de::{Deserializer, Error};
 
 /// A date in utc
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// graphql
+#[cfg_attr(feature = "graphql", derive(juniper::GraphQLScalar))]
+#[cfg_attr(feature = "graphql", graphql(with = graphql))]
 pub struct Date(chrono::NaiveDate);
 
 impl Date {
@@ -211,31 +214,31 @@ mod protobuf {
 mod graphql {
 	use super::*;
 
-	use juniper::{graphql_scalar, Value};
+	use juniper::{
+		Value, ScalarValue, InputValue, ScalarToken, ParseScalarResult
+	};
 
-	#[graphql_scalar]
-	impl<S> GraphQlScalar for Date
-	where S: ScalarValue {
-		fn resolve(&self) -> Value {
-			Value::scalar(self.to_string())
-		}
+	pub(crate) fn to_output<S: ScalarValue>(v: &Date) -> Value<S> {
+		Value::scalar(v.to_string())
+	}
 
-		fn from_input_value(value: &InputValue) -> Option<Date> {
-			value.as_string_value()
-				.and_then(|s| Date::from_str(s.as_ref()).ok())
-		}
+	pub(crate) fn from_input<S: ScalarValue>(
+		v: &InputValue<S>
+	) -> Result<Date, String> {
+		v.as_string_value()
+			.and_then(|s| Date::from_str(s.as_ref()).ok())
+			.ok_or_else(|| "Expected a date y-m-d".into())
+	}
 
-		fn from_str<'a>(
-			value: ScalarToken<'a>
-		) -> juniper::ParseScalarResult<'a, S> {
-			<String as juniper::ParseScalarValue<S>>::from_str(value)
-		}
+	pub(crate) fn parse_token<S: ScalarValue>(
+		value: ScalarToken<'_>
+	) -> ParseScalarResult<S> {
+		<String as juniper::ParseScalarValue<S>>::from_str(value)
 	}
 }
 
 #[cfg(test)]
 mod tests {
-
 	use super::*;
 	use serde_json::{Value, from_value, from_str};
 
@@ -252,5 +255,4 @@ mod tests {
 		assert_eq!(d.to_days_since_1970(), 19581);
 		assert_eq!(Date::from_days_since_1970(19581).to_string(), "2023-08-12");
 	}
-
 }
