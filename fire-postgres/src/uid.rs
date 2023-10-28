@@ -229,8 +229,10 @@ mod graphql {
 	pub(crate) fn from_input<S: ScalarValue>(
 		v: &InputValue<S>
 	) -> Result<UniqueId, String> {
-		v.as_string_value().and_then(|s| s.parse().ok())
-			.ok_or_else(|| "Expected a string".into())
+		v.as_string_value()
+			.ok_or("Expected a string")?
+			.parse()
+			.map_err(|e: DecodeError| e.to_string())
 	}
 
 	pub(crate) fn parse_token<S: ScalarValue>(
