@@ -55,9 +55,13 @@ impl UniqueId {
 		URL_SAFE_NO_PAD.encode(self.0)
 	}
 
-	// this panics if b64 has not a length of 14
+	/// If the string is not 14 bytes long returns InvalidLength
 	pub fn parse_from_b64<T>(b64: T) -> Result<Self, DecodeError>
 	where T: AsRef<[u8]> {
+		if b64.as_ref().len() != 14 {
+			return Err(DecodeError::InvalidLength)
+		}
+
 		let mut bytes = [0u8; 10];
 		URL_SAFE_NO_PAD.decode_slice_unchecked(b64, &mut bytes)
 			.map(|n| assert_eq!(n, bytes.len()))
