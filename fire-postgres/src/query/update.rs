@@ -1,5 +1,5 @@
+use super::{Query, SqlBuilder, Param, ColumnType};
 
-use super::{Query, SqlBuilder, Param};
 
 #[derive(Debug, Clone)]
 pub struct UpdateParams<'a> {
@@ -8,11 +8,15 @@ pub struct UpdateParams<'a> {
 
 impl<'a> UpdateParams<'a> {
 	pub fn new(params: Vec<Param<'a>>) -> Self {
-		Self {params}
+		Self { params }
+	}
+
+	pub fn insert<T>(&mut self, name: &'static str, data: &'a T)
+	where T: ColumnType {
+		self.params.push(Param::new(name, data));
 	}
 
 	pub fn into_query(self) -> Query<'a> {
-
 		let mut sql = SqlBuilder::new();
 
 		let last = self.params.len() - 1;

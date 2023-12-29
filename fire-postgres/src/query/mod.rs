@@ -178,11 +178,11 @@ pub struct Param<'a> {
 }
 
 impl<'a> Param<'a> {
-
 	pub fn new<T>(name: &'static str, data: &'a T) -> Self
 	where T: ColumnType {
 		let kind = T::column_kind();
-		Self {name, kind,
+		Self {
+			name, kind,
 			data: data.to_data()
 		}
 	}
@@ -195,7 +195,6 @@ impl<'a> Param<'a> {
 	pub fn maybe_null(&self) -> bool {
 		matches!(self.kind, ColumnKind::Option(_))
 	}
-
 }
 
 
