@@ -1,24 +1,23 @@
+use crate::table::column::{ColumnData, ColumnKind, ColumnType, FromDataError};
 
-use crate::table::column::{ColumnType, ColumnKind, ColumnData, FromDataError};
-
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
-use std::borrow::Cow;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use rand::{RngCore, rngs::OsRng};
-use base64::engine::{Engine, general_purpose::URL_SAFE_NO_PAD};
+use base64::engine::{general_purpose::URL_SAFE_NO_PAD, Engine};
 use base64::DecodeError;
+use rand::{rngs::OsRng, RngCore};
 
-use serde::{Serialize, Deserialize};
-use serde::ser::Serializer;
 use serde::de::{Deserializer, Error};
+use serde::ser::Serializer;
+use serde::{Deserialize, Serialize};
 
-/// A UniqueId that can be used within a database. 
+/// A UniqueId that can be used within a database.
 /// Is not cryptographically secure and could be bruteforced.
 ///
 /// Contains 10bytes
-/// - 0..5 are seconds since the UNIX_EPOCH 
+/// - 0..5 are seconds since the UNIX_EPOCH
 /// - 5..10 are random
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UniqueId([u8; 10]);
@@ -57,13 +56,16 @@ impl UniqueId {
 
 	/// If the string is not 14 bytes long returns InvalidLength
 	pub fn parse_from_b64<T>(b64: T) -> Result<Self, DecodeError>
-	where T: AsRef<[u8]> {
+	where
+		T: AsRef<[u8]>,
+	{
 		if b64.as_ref().len() != 14 {
-			return Err(DecodeError::InvalidLength)
+			return Err(DecodeError::InvalidLength);
 		}
 
 		let mut bytes = [0u8; 10];
-		URL_SAFE_NO_PAD.decode_slice_unchecked(b64, &mut bytes)
+		URL_SAFE_NO_PAD
+			.decode_slice_unchecked(b64, &mut bytes)
 			.map(|n| assert_eq!(n, bytes.len()))
 			.map(|_| Self(bytes))
 	}
@@ -89,9 +91,7 @@ impl UniqueId {
 
 impl fmt::Debug for UniqueId {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.debug_tuple("UniqueId")
-			.field(&self.to_b64())
-			.finish()
+		f.debug_tuple("UniqueId").field(&self.to_b64()).finish()
 	}
 }
 
@@ -116,7 +116,6 @@ impl From<DecodeError> for FromDataError {
 }
 
 impl ColumnType for UniqueId {
-
 	fn column_kind() -> ColumnKind {
 		ColumnKind::FixedText(14)
 	}
@@ -127,31 +126,39 @@ impl ColumnType for UniqueId {
 
 	fn from_data(data: ColumnData) -> Result<Self, FromDataError> {
 		match data {
-			ColumnData::Text(s) if s.len() == 14 => Ok(Self::parse_from_b64(s.as_str())?),
-			_ => Err(FromDataError::ExpectedType("char with 14 chars for unique id"))
+			ColumnData::Text(s) if s.len() == 14 => {
+				Ok(Self::parse_from_b64(s.as_str())?)
+			}
+			_ => Err(FromDataError::ExpectedType(
+				"char with 14 chars for unique id",
+			)),
 		}
 	}
-
 }
 // SERDE
 
 impl Serialize for UniqueId {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-	where S: Serializer {
+	where
+		S: Serializer,
+	{
 		serializer.serialize_str(&self.to_b64())
 	}
 }
 
 impl<'de> Deserialize<'de> for UniqueId {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-	where D: Deserializer<'de> {
+	where
+		D: Deserializer<'de>,
+	{
 		let s: Cow<'_, str> = Deserialize::deserialize(deserializer)?;
 		let s = s.as_ref();
 		if s.len() == 14 {
-			UniqueId::parse_from_b64(s)
-				.map_err(D::Error::custom)
+			UniqueId::parse_from_b64(s).map_err(D::Error::custom)
 		} else {
-			Err(D::Error::custom("expected string with exactly 14 characters"))
+			Err(D::Error::custom(
+				"expected string with exactly 14 characters",
+			))
 		}
 	}
 }
@@ -161,12 +168,12 @@ mod protobuf {
 	use super::*;
 
 	use fire_protobuf::{
-		WireType,
+		bytes::BytesWrite,
+		decode::{DecodeError, DecodeMessage, FieldKind},
 		encode::{
-			EncodeMessage, MessageEncoder, FieldOpt, SizeBuilder, EncodeError
+			EncodeError, EncodeMessage, FieldOpt, MessageEncoder, SizeBuilder,
 		},
-		decode::{DecodeMessage, FieldKind, DecodeError},
-		bytes::BytesWrite
+		WireType,
 	};
 
 	impl EncodeMessage for UniqueId {
@@ -179,7 +186,7 @@ mod protobuf {
 		fn encoded_size(
 			&mut self,
 			field: Option<FieldOpt>,
-			builder: &mut SizeBuilder
+			builder: &mut SizeBuilder,
 		) -> Result<(), EncodeError> {
 			self.0.encoded_size(field, builder)
 		}
@@ -187,9 +194,11 @@ mod protobuf {
 		fn encode<B>(
 			&mut self,
 			field: Option<FieldOpt>,
-			encoder: &mut MessageEncoder<B>
+			encoder: &mut MessageEncoder<B>,
 		) -> Result<(), EncodeError>
-		where B: BytesWrite {
+		where
+			B: BytesWrite,
+		{
 			self.0.encode(field, encoder)
 		}
 	}
@@ -204,7 +213,7 @@ mod protobuf {
 		fn merge(
 			&mut self,
 			kind: FieldKind<'m>,
-			is_field: bool
+			is_field: bool,
 		) -> Result<(), DecodeError> {
 			self.0.merge(kind, is_field)
 		}
@@ -219,7 +228,9 @@ mod graphql {
 
 	#[graphql_scalar]
 	impl<S> GraphQlScalar for UniqueId
-	where S: ScalarValue {
+	where
+		S: ScalarValue,
+	{
 		fn resolve(&self) -> Value {
 			Value::scalar(self.to_string())
 		}
@@ -229,7 +240,7 @@ mod graphql {
 		}
 
 		fn from_str<'a>(
-			value: ScalarToken<'a>
+			value: ScalarToken<'a>,
 		) -> juniper::ParseScalarResult<'a, S> {
 			<String as juniper::ParseScalarValue<S>>::from_str(value)
 		}
@@ -240,7 +251,7 @@ mod graphql {
 mod tests {
 
 	use super::*;
-	use serde_json::{Value, from_value, from_str};
+	use serde_json::{from_str, from_value, Value};
 
 	// abcdefghijklmnopqrstuvwxyz
 
@@ -254,5 +265,4 @@ mod tests {
 		let d: UniqueId = from_value(v).unwrap();
 		assert_eq!(d.to_string(), "AGCGeWIDTlipbg");
 	}
-
 }

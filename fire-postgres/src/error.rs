@@ -1,11 +1,9 @@
-
 use crate::table::column::FromDataError;
 use crate::table::info::ValidateParamsError;
 
 use std::fmt;
 
 use tokio_postgres::error::Error as PostgresError;
-
 
 #[cfg(feature = "hash")]
 use bcrypt::BcryptError;
@@ -16,7 +14,7 @@ pub enum Error {
 	FromData(FromDataError),
 	ValidateParamsError(ValidateParamsError),
 	#[cfg(feature = "hash")]
-	BcryptError(BcryptError)
+	BcryptError(BcryptError),
 }
 
 impl fmt::Display for Error {

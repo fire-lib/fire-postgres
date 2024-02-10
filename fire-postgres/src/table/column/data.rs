@@ -1,33 +1,30 @@
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Text<'a> {
 	Owned(String),
-	Borrowed(&'a str)
+	Borrowed(&'a str),
 }
 
 impl Text<'_> {
-
 	pub fn into_string(self) -> String {
 		match self {
 			Self::Owned(s) => s,
-			Self::Borrowed(b) => b.to_string()
+			Self::Borrowed(b) => b.to_string(),
 		}
 	}
 
 	pub fn as_str(&self) -> &str {
 		match self {
 			Self::Owned(s) => s,
-			Self::Borrowed(b) => b
+			Self::Borrowed(b) => b,
 		}
 	}
 
 	pub fn len(&self) -> usize {
 		match self {
 			Self::Owned(s) => s.len(),
-			Self::Borrowed(s) => s.len()
+			Self::Borrowed(s) => s.len(),
 		}
 	}
-
 }
 
 impl<'a> From<&'a str> for Text<'a> {
@@ -46,7 +43,7 @@ impl From<String> for Text<'_> {
 
 pub enum SliceState<'a> {
 	Owned(&'a [String]),
-	Borrowed(&'a [&'a str])
+	Borrowed(&'a [&'a str]),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,17 +51,16 @@ pub enum TextArray<'a> {
 	SliceOwned(&'a [String]),
 	SliceStr(&'a [&'a str]),
 	VecOwned(Vec<String>),
-	VecStr(Vec<&'a str>)
+	VecStr(Vec<&'a str>),
 }
 
 impl<'a> TextArray<'a> {
-
 	pub fn len(&self) -> usize {
 		match self {
 			Self::SliceOwned(v) => v.len(),
 			Self::SliceStr(v) => v.len(),
 			Self::VecOwned(v) => v.len(),
-			Self::VecStr(v) => v.len()
+			Self::VecStr(v) => v.len(),
 		}
 	}
 
@@ -73,7 +69,7 @@ impl<'a> TextArray<'a> {
 			Self::SliceOwned(s) => s.iter().map(|v| v.to_string()).collect(),
 			Self::SliceStr(s) => s.iter().map(|v| v.to_string()).collect(),
 			Self::VecOwned(v) => v,
-			Self::VecStr(v) => v.iter().map(|v| v.to_string()).collect()
+			Self::VecStr(v) => v.iter().map(|v| v.to_string()).collect(),
 		}
 	}
 
@@ -98,7 +94,7 @@ impl<'a> TextArray<'a> {
 	pub fn unwrap_vec_str(self) -> Vec<&'a str> {
 		match self {
 			Self::VecStr(v) => v,
-			_ => panic!("could not unwrap vec str from textarray")
+			_ => panic!("could not unwrap vec str from textarray"),
 		}
 	}
 
@@ -115,10 +111,9 @@ impl<'a> TextArray<'a> {
 			Self::SliceOwned(v) => SliceState::Owned(v),
 			Self::SliceStr(v) => SliceState::Borrowed(v),
 			Self::VecOwned(v) => SliceState::Owned(v.as_slice()),
-			Self::VecStr(v) => SliceState::Borrowed(v.as_slice())
+			Self::VecStr(v) => SliceState::Borrowed(v.as_slice()),
 		}
 	}
-
 }
 
 impl<'a> From<&'a [String]> for TextArray<'a> {
@@ -165,11 +160,10 @@ pub enum ColumnData<'a> {
 	I16(i16),
 	Option(Option<Box<ColumnData<'a>>>),
 	TextArray(TextArray<'a>),
-	Bytea(&'a [u8])
+	Bytea(&'a [u8]),
 }
 
 impl<'a> ColumnData<'a> {
-
 	/*pub fn text(s: &'static str) -> Self {
 		Self::Text(s)
 	}
@@ -189,10 +183,9 @@ impl<'a> ColumnData<'a> {
 	pub fn unwrap_text(self) -> Text<'a> {
 		match self {
 			Self::Text(t) => t,
-			_ => panic!("could not unwrap text")
+			_ => panic!("could not unwrap text"),
 		}
 	}
-
 }
 
 #[cfg(feature = "connect")]
@@ -207,8 +200,8 @@ mod impl_postgres {
 
 	use fallible_iterator::FallibleIterator;
 
-	use postgres_types::{ToSql, FromSql, IsNull, Type, Kind as PostgresKind};
 	use postgres_types::{accepts, to_sql_checked};
+	use postgres_types::{FromSql, IsNull, Kind as PostgresKind, ToSql, Type};
 
 	use postgres_protocol::types as ty;
 	use postgres_protocol::IsNull as ProtIsNull;
@@ -216,61 +209,67 @@ mod impl_postgres {
 	type BoxedError = Box<dyn Error + Send + Sync + 'static>;
 
 	macro_rules! accepts {
-		() => (
+		() => {
 			fn accepts(ty: &Type) -> bool {
 				match ty {
-					&Type::BOOL |
-					&Type::BPCHAR |
-					&Type::VARCHAR |
-					&Type::TEXT |
-					&Type::DATE |
-					&Type::TIMESTAMP |
-					&Type::FLOAT8 |
-					&Type::FLOAT4 |
-					&Type::INT8 |
-					&Type::INT4 |
-					&Type::INT2 |
-					&Type::BYTEA |
-					&Type::JSON => true,
+					&Type::BOOL
+					| &Type::BPCHAR
+					| &Type::VARCHAR
+					| &Type::TEXT
+					| &Type::DATE
+					| &Type::TIMESTAMP
+					| &Type::FLOAT8
+					| &Type::FLOAT4
+					| &Type::INT8
+					| &Type::INT4
+					| &Type::INT2
+					| &Type::BYTEA
+					| &Type::JSON => true,
 					t => match t.kind() {
 						PostgresKind::Array(Type::TEXT) => true,
-						_ => false
-					}
+						_ => false,
+					},
 				}
 			}
-		)
+		};
 	}
 
 	fn text_array_to_sql<'a, I, T, F>(
 		len: usize,
 		elements: I,
 		f: F,
-		buf: &mut BytesMut
+		buf: &mut BytesMut,
 	) -> Result<(), BoxedError>
 	where
 		I: IntoIterator<Item = T>,
-		F: Fn(T) -> &'a str
+		F: Fn(T) -> &'a str,
 	{
-
 		let len = i32::try_from(len).map_err(|_| "cannot convert i16 to u8")?;
 		let dimension = ty::ArrayDimension {
-			len, lower_bound: 1
+			len,
+			lower_bound: 1,
 		};
 
 		let text_oid = Type::TEXT.oid();
 
 		ty::array_to_sql(
-			Some(dimension), text_oid, elements,
+			Some(dimension),
+			text_oid,
+			elements,
 			|e, buf| {
 				ty::text_to_sql(f(e), buf);
 				Ok(ProtIsNull::No)
 			},
-			buf
+			buf,
 		)
 	}
 
 	impl<'a> ToSql for ColumnData<'a> {
-		fn to_sql(&self, _ty: &Type, out: &mut BytesMut) -> Result<IsNull, BoxedError> {
+		fn to_sql(
+			&self,
+			_ty: &Type,
+			out: &mut BytesMut,
+		) -> Result<IsNull, BoxedError> {
 			match self {
 				ColumnData::Boolean(v) => ty::bool_to_sql(*v, out),
 				ColumnData::Text(v) => ty::text_to_sql(v.as_str(), out),
@@ -283,13 +282,16 @@ mod impl_postgres {
 				ColumnData::I16(v) => ty::int2_to_sql(*v, out),
 				ColumnData::Option(o) => match o {
 					Some(v) => return v.to_sql(_ty, out),
-					None => return Ok(IsNull::Yes)
+					None => return Ok(IsNull::Yes),
 				},
 				ColumnData::Bytea(v) => ty::bytea_to_sql(v, out),
 				ColumnData::TextArray(v) => match v.to_slice_state() {
-					SliceState::Owned(o) => {
-						text_array_to_sql(o.len(), o.iter(), |v| v.as_str(), out)?
-					},
+					SliceState::Owned(o) => text_array_to_sql(
+						o.len(),
+						o.iter(),
+						|v| v.as_str(),
+						out,
+					)?,
 					SliceState::Borrowed(b) => {
 						text_array_to_sql(b.len(), b.iter(), |v| v, out)?
 					}
@@ -309,12 +311,13 @@ mod impl_postgres {
 		fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, BoxedError> {
 			Ok(match ty {
 				&Type::BOOL => Self::Boolean(ty::bool_from_sql(raw)?),
-				&Type::BPCHAR |
-				&Type::VARCHAR |
-				&Type::TEXT |
-				&Type::JSON => Self::Text(ty::text_from_sql(raw)?.into()),
+				&Type::BPCHAR | &Type::VARCHAR | &Type::TEXT | &Type::JSON => {
+					Self::Text(ty::text_from_sql(raw)?.into())
+				}
 				&Type::DATE => Self::Date(ty::date_from_sql(raw)?),
-				&Type::TIMESTAMP => Self::Timestamp(ty::timestamp_from_sql(raw)?),
+				&Type::TIMESTAMP => {
+					Self::Timestamp(ty::timestamp_from_sql(raw)?)
+				}
 				&Type::FLOAT8 => Self::F64(ty::float8_from_sql(raw)?),
 				&Type::FLOAT4 => Self::F32(ty::float4_from_sql(raw)?),
 				&Type::INT8 => Self::I64(ty::int8_from_sql(raw)?),
@@ -324,17 +327,19 @@ mod impl_postgres {
 				// &Type::TEXTARRAY
 				t => {
 					match t.kind() {
-						PostgresKind::Array(Type::TEXT) => {},
-						_ => return Err("type not recognized".into())
+						PostgresKind::Array(Type::TEXT) => {}
+						_ => return Err("type not recognized".into()),
 					};
 
 					let array = ty::array_from_sql(raw)?;
 					if array.dimensions().count()? > 1 {
-						return Err("array contains too many dimensions".into())
+						return Err("array contains too many dimensions".into());
 					}
 
 					if array.element_type() != Type::TEXT.oid() {
-						return Err("expected array with TEXT AS Element".into())
+						return Err(
+							"expected array with TEXT AS Element".into()
+						);
 					}
 
 					let mut values = vec![];
@@ -342,7 +347,9 @@ mod impl_postgres {
 					while let Some(buf) = array.next()? {
 						match buf {
 							Some(buf) => values.push(ty::text_from_sql(buf)?),
-							None => return Err("array items cannot be null".into())
+							None => {
+								return Err("array items cannot be null".into())
+							}
 						}
 					}
 
@@ -351,11 +358,12 @@ mod impl_postgres {
 			})
 		}
 
-		fn from_sql_null(_: &Type) -> Result<Self, Box<dyn Error + Sync + Send>> {
+		fn from_sql_null(
+			_: &Type,
+		) -> Result<Self, Box<dyn Error + Sync + Send>> {
 			Ok(Self::Option(None))
 		}
 
 		accepts!();
 	}
-
 }

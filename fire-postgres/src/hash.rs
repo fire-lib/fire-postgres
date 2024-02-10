@@ -1,4 +1,3 @@
-
 use crate::Result;
 
 pub fn hash<P: AsRef<[u8]>>(password: P) -> Result<String> {

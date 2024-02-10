@@ -1,20 +1,20 @@
-
 use super::column::Column;
 use crate::query::Param;
 
 #[derive(Debug, Clone)]
 pub struct Info {
-	data: Vec<Column>
+	data: Vec<Column>,
 }
 
 impl Info {
-	
 	pub fn new(data: Vec<Column>) -> Self {
 		Self { data }
 	}
 
 	pub fn with_capacity(cap: usize) -> Self {
-		Self { data: Vec::with_capacity(cap) }
+		Self {
+			data: Vec::with_capacity(cap),
+		}
 	}
 
 	pub fn push(&mut self, col: Column) {
@@ -31,29 +31,30 @@ impl Info {
 
 	pub fn validate_params(
 		&self,
-		params: &[Param]
+		params: &[Param],
 	) -> Result<(), ValidateParamsError> {
 		'param_loop: for param in params {
 			for col in &self.data {
 				if param.name != col.name {
-					continue
+					continue;
 				}
 
 				if param.kind == col.kind {
-					continue 'param_loop
+					continue 'param_loop;
 				} else {
-					return Err(ValidateParamsError(
-						format!("{:?} != {:?}", param, col)
-					));
+					return Err(ValidateParamsError(format!(
+						"{:?} != {:?}",
+						param, col
+					)));
 				}
 			}
-			return Err(ValidateParamsError(
-				format!("param: {:?} not found", param.name)
-			))
+			return Err(ValidateParamsError(format!(
+				"param: {:?} not found",
+				param.name
+			)));
 		}
 		Ok(())
 	}
-
 }
 
 #[derive(Debug, Clone)]

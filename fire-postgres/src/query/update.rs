@@ -1,9 +1,8 @@
-use super::{Query, SqlBuilder, Param, ColumnType};
-
+use super::{ColumnType, Param, Query, SqlBuilder};
 
 #[derive(Debug, Clone)]
 pub struct UpdateParams<'a> {
-	params: Vec<Param<'a>>
+	params: Vec<Param<'a>>,
 }
 
 impl<'a> UpdateParams<'a> {
@@ -12,7 +11,9 @@ impl<'a> UpdateParams<'a> {
 	}
 
 	pub fn insert<T>(&mut self, name: &'static str, data: &'a T)
-	where T: ColumnType {
+	where
+		T: ColumnType,
+	{
 		self.params.push(Param::new(name, data));
 	}
 
@@ -21,14 +22,12 @@ impl<'a> UpdateParams<'a> {
 
 		let last = self.params.len() - 1;
 		for (i, param) in self.params.iter().enumerate() {
-
 			sql.space_after(format!("\"{}\" =", param.name));
 			sql.param();
 
 			if i != last {
 				sql.space_after(",");
 			}
-
 		}
 
 		Query::new(sql, self.params)
@@ -44,7 +43,7 @@ impl<'a> UpdateParams<'a> {
 /// 	a,
 /// 	"b": b
 /// }.into_query();
-/// 
+///
 /// assert_eq!(r#""a" = $1, "b" = $2"#, query.sql().to_string().trim());
 /// ```
 #[macro_export]

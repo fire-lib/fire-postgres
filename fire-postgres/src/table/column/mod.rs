@@ -1,28 +1,33 @@
-
 mod column_type;
 pub use column_type::{ColumnType, FromDataError};
 
 mod data;
 pub use data::ColumnData;
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Column {
 	pub name: &'static str,
 	pub kind: ColumnKind,
-	pub index: IndexKind
+	pub index: IndexKind,
 }
 
 impl Column {
-
-	pub fn new<T>(name: &'static str, len: Option<usize>, index: IndexKind) -> Self
-	where T: ColumnType {
-
+	pub fn new<T>(
+		name: &'static str,
+		len: Option<usize>,
+		index: IndexKind,
+	) -> Self
+	where
+		T: ColumnType,
+	{
 		let mut kind = T::column_kind();
 		if let Some(len) = len {
 			kind = match kind {
 				ColumnKind::Text => ColumnKind::Varchar(len),
-				_ => panic!("column kind {:?} doenst support len attribute", kind)
+				_ => panic!(
+					"column kind {:?} doenst support len attribute",
+					kind
+				),
 			};
 		}
 
@@ -54,9 +59,7 @@ impl Column {
 		} else {""};
 		format!("{} {} {} {}", self.name(), self.kind_string(), index_str, self.not_null_str())
 	}*/
-
 }
-
 
 /*
 ToColumnType
@@ -79,11 +82,10 @@ pub enum ColumnKind {
 	Option(Box<ColumnKind>),
 	TextArray,
 	Bytea,
-	Json
+	Json,
 }
 
 impl ColumnKind {
-
 	pub fn short(&self) -> &'static str {
 		match self {
 			Self::Boolean => "boolean",
@@ -101,7 +103,7 @@ impl ColumnKind {
 			Self::Option(t) => t.short(),
 			Self::TextArray => "text []",
 			Self::Bytea => "bytea",
-			Self::Json => "json"
+			Self::Json => "json",
 		}
 	}
 
@@ -111,7 +113,7 @@ impl ColumnKind {
 			Self::Varchar(v) => format!("({})", v),
 			Self::FixedText(v) => format!(" CHECK (length({})={})", name, v),
 			Self::Option(t) => t.value(name),
-			_ => String::new()
+			_ => String::new(),
 		}
 	}
 
@@ -122,13 +124,10 @@ impl ColumnKind {
 	pub fn not_null_str(&self) -> &'static str {
 		match self {
 			Self::Option(_) => "null",
-			_ => "not null"
+			_ => "not null",
 		}
 	}
-
 }
-
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IndexKind {
@@ -136,7 +135,7 @@ pub enum IndexKind {
 	Unique,
 	NamedUnique(&'static str),
 	Index,
-	None
+	None,
 }
 
 impl IndexKind {
@@ -195,11 +194,11 @@ CREATE TABLE account_role
   grant_date timestamp without time zone,
   PRIMARY KEY (user_id, role_id),
   CONSTRAINT account_role_role_id_fkey FOREIGN KEY (role_id)
-      REFERENCES role (role_id) MATCH SIMPLE
-      ON UPDATE NO ACTION ON DELETE NO ACTION,
+	  REFERENCES role (role_id) MATCH SIMPLE
+	  ON UPDATE NO ACTION ON DELETE NO ACTION,
   CONSTRAINT account_role_user_id_fkey FOREIGN KEY (user_id)
-      REFERENCES account (user_id) MATCH SIMPLE
-      ON UPDATE NO ACTION ON DELETE NO ACTION
+	  REFERENCES account (user_id) MATCH SIMPLE
+	  ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 */
 

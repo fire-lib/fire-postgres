@@ -1,4 +1,3 @@
-
 use crate::table::{Table, TableTemplate};
 
 use std::sync::Arc;
@@ -6,18 +5,17 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
 
-use tokio_postgres::{connect, NoTls};
 use tokio_postgres::Client;
+use tokio_postgres::{connect, NoTls};
 
 pub(crate) type SharedClient = Arc<RwLock<Client>>;
 
 #[derive(Debug, Clone)]
 pub struct Database {
-	client: SharedClient
+	client: SharedClient,
 }
 
 impl Database {
-
 	pub async fn new(name: &str, user: &str, password: &str) -> Self {
 		Self::with_host("localhost", name, user, password).await
 	}
@@ -26,16 +24,17 @@ impl Database {
 		host: &str,
 		name: &str,
 		user: &str,
-		password: &str
+		password: &str,
 	) -> Self {
 		// let client = Client::with_uri_str("mongodb://localhost:27017")
 		//	.expect("Failed to initilize mongo client.");
 		let config = format!(
 			"host={} dbname={} user={} password={}",
-			host,name, user, password
+			host, name, user, password
 		);
 
-		let (client, connection) = connect(&config, NoTls).await
+		let (client, connection) = connect(&config, NoTls)
+			.await
 			.expect("Failed to initialize postgres client");
 
 		let client = Arc::new(RwLock::new(client));
@@ -57,7 +56,7 @@ impl Database {
 					Ok(o) => o,
 					Err(e) => {
 						tracing::error!("connection error: {}", e);
-						continue
+						continue;
 					}
 				};
 
@@ -72,8 +71,9 @@ impl Database {
 	}
 
 	pub fn table<T>(&self, name: &'static str) -> Table<T>
-	where T: TableTemplate {
+	where
+		T: TableTemplate,
+	{
 		Table::new(self.client.clone(), name)
 	}
-
 }

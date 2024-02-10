@@ -1,13 +1,13 @@
-use crate::table::column::{ColumnKind, ColumnData, ColumnType};
+use crate::table::column::{ColumnData, ColumnKind, ColumnType};
 
-use std::fmt;
 use std::borrow::Cow;
+use std::fmt;
 
 #[cfg(feature = "connect")]
 use tokio_postgres::types::ToSql;
 
-pub mod whr;
 pub mod update;
+pub mod whr;
 pub use update::UpdateParams;
 
 pub type SqlStr = Cow<'static, str>;
@@ -24,12 +24,12 @@ enum SqlBuilderType {
 	SpaceAfter(SqlStr),
 	SpaceBefore(SqlStr),
 	Space(SqlStr),
-	Param
+	Param,
 }
 
 #[derive(Debug, Clone)]
 pub struct SqlBuilder {
-	data: Vec<SqlBuilderType>
+	data: Vec<SqlBuilderType>,
 }
 
 impl SqlBuilder {
@@ -39,7 +39,7 @@ impl SqlBuilder {
 
 	pub fn from_sql_str(sql: impl Into<SqlStr>) -> Self {
 		Self {
-			data: vec![SqlBuilderType::SpaceAfter(sql.into())]
+			data: vec![SqlBuilderType::SpaceAfter(sql.into())],
 		}
 	}
 
@@ -84,16 +84,16 @@ impl fmt::Display for SqlBuilder {
 			match d {
 				SqlBuilderType::NoSpace(s) => {
 					f.write_str(s)?;
-				},
+				}
 				SqlBuilderType::SpaceAfter(s) => {
 					write!(f, "{} ", s)?;
-				},
+				}
 				SqlBuilderType::SpaceBefore(s) => {
 					write!(f, " {}", s)?;
-				},
+				}
 				SqlBuilderType::Space(s) => {
 					write!(f, " {} ", s)?;
-				},
+				}
 				SqlBuilderType::Param => {
 					c += 1;
 					write!(f, "${}", c)?;
@@ -108,18 +108,18 @@ impl fmt::Display for SqlBuilder {
 #[derive(Debug, Clone)]
 pub struct Query<'a> {
 	pub sql: SqlBuilder,
-	pub params: Vec<Param<'a>>
+	pub params: Vec<Param<'a>>,
 }
 
 impl<'a> Query<'a> {
 	pub fn new(sql: SqlBuilder, params: Vec<Param<'a>>) -> Self {
-		Self {sql, params}
+		Self { sql, params }
 	}
 
 	pub fn from_sql_str(sql: impl Into<SqlStr>) -> Self {
 		Self {
 			sql: SqlBuilder::from_sql_str(sql),
-			params: vec![]
+			params: vec![],
 		}
 	}
 
@@ -169,21 +169,23 @@ impl<'a> Query<'a> {
 	}
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param<'a> {
 	pub name: &'static str,
 	pub kind: ColumnKind,
-	pub data: ColumnData<'a>
+	pub data: ColumnData<'a>,
 }
 
 impl<'a> Param<'a> {
 	pub fn new<T>(name: &'static str, data: &'a T) -> Self
-	where T: ColumnType {
+	where
+		T: ColumnType,
+	{
 		let kind = T::column_kind();
 		Self {
-			name, kind,
-			data: data.to_data()
+			name,
+			kind,
+			data: data.to_data(),
 		}
 	}
 
@@ -196,9 +198,6 @@ impl<'a> Param<'a> {
 		matches!(self.kind, ColumnKind::Option(_))
 	}
 }
-
-
-
 
 /*
 find

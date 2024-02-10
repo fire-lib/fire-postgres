@@ -1,4 +1,3 @@
-
 /// Possible operators
 /// - = | != | < | <= | > | >= | LIKE | IN
 /// - AND | OR
@@ -9,7 +8,7 @@
 /// let b = &"val2".to_string();
 /// let c: &Option<String> = &None;
 /// let query = whr!(a AND "b" != b OR c);
-/// 
+///
 /// assert_eq!(r#""a" = $1 AND "b" != $2 OR "c" IS NULL"#, query.sql().to_string().trim());
 /// ```
 #[macro_export]
@@ -106,7 +105,7 @@ macro_rules! short_whr_comp {
 			$s.param();
 			$p.push(param);
 		}
-		
+
 		$crate::whr_log!($s, $p, $($tt)*);
 	);
 	// LIMIT
@@ -174,9 +173,6 @@ mod tests {
 			"\"id\" = $1 ORDER BY \"id\" ASC  LIMIT 10"
 		);
 		let query = whr!(ORDER "id" DESC);
-		assert_eq!(
-			query.sql.to_string().trim(),
-			"ORDER BY \"id\" DESC"
-		);
+		assert_eq!(query.sql.to_string().trim(), "ORDER BY \"id\" DESC");
 	}
 }

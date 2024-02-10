@@ -1,16 +1,16 @@
-use super::{Info, TableTemplate, ColumnData};
-use super::util::{
-	data_into_sql_params, rows_into_data, info_data_to_sql, quote
-};
 use super::column::ColumnType;
+use super::util::{
+	data_into_sql_params, info_data_to_sql, quote, rows_into_data,
+};
+use super::{ColumnData, Info, TableTemplate};
 
 use crate::database::SharedClient;
-use crate::query::{Query, UpdateParams, SqlBuilder};
+use crate::query::{Query, SqlBuilder, UpdateParams};
 use crate::Result;
 
-use std::sync::Arc;
-use std::marker::PhantomData;
 use std::borrow::Borrow;
+use std::marker::PhantomData;
+use std::sync::Arc;
 // use std::fmt::Write;
 
 // use tokio_postgres::types::ToSql;
@@ -19,9 +19,9 @@ use std::borrow::Borrow;
 // is thread safe
 // maybe should change to an inner?
 macro_rules! debug_sql {
-	($method:expr, $name:expr, $sql:expr) => (
+	($method:expr, $name:expr, $sql:expr) => {
 		tracing::debug!("sql: {} {} with {}", $method, $name, $sql);
-	)
+	};
 }
 
 #[derive(Debug)]
@@ -30,21 +30,24 @@ struct TableMeta {
 	select: String,
 	insert: String,
 	update_full: SqlBuilder,
-	names_for_select: String
+	names_for_select: String,
 }
 
 #[derive(Debug)]
 pub struct Table<T>
-where T: TableTemplate {
+where
+	T: TableTemplate,
+{
 	client: SharedClient,
 	name: &'static str,
 	meta: Arc<TableMeta>,
-	phantom: PhantomData<T>
+	phantom: PhantomData<T>,
 }
 
 impl<T> Table<T>
-where T: TableTemplate {
-
+where
+	T: TableTemplate,
+{
 	pub(crate) fn new(client: SharedClient, name: &'static str) -> Self {
 		let info = T::table_info();
 		let meta = TableMeta {
@@ -52,13 +55,14 @@ where T: TableTemplate {
 			insert: Self::create_insert_sql(&info, name),
 			update_full: Self::create_update_full(&info),
 			names_for_select: Self::create_names_for_select(&info),
-			info
+			info,
 		};
 
 		Self {
-			client, name,
+			client,
+			name,
 			meta: Arc::new(meta),
-			phantom: PhantomData
+			phantom: PhantomData,
 		}
 	}
 
@@ -110,7 +114,6 @@ where T: TableTemplate {
 
 		let last = info.data().len() - 1;
 		for (i, col) in info.data().iter().enumerate() {
-
 			sql.space_after(format!("\"{}\" =", col.name));
 			sql.param();
 
@@ -124,26 +127,24 @@ where T: TableTemplate {
 
 	// Create
 	pub async fn try_create(&self) -> Result<()> {
-
 		let sql = info_data_to_sql(self.name, self.meta.info.data());
 
 		debug_sql!("create", self.name, sql);
 
 		self.client
-			.read().await
-			.batch_execute(sql.as_str()).await
+			.read()
+			.await
+			.batch_execute(sql.as_str())
+			.await
 			.map_err(Into::into)
 	}
 
 	/// ## Panics
 	/// if the table could not be created
 	pub async fn create(self) -> Self {
-		self.try_create().await
-			.expect("could not create table");
+		self.try_create().await.expect("could not create table");
 		self
 	}
-
-
 
 	/*pub async fn query_raw(
 		&self,
@@ -162,12 +163,10 @@ where T: TableTemplate {
 		self.client.query(sql.as_str(), data.as_slice()).await
 	}*/
 
-
 	// find
 	// maybe rename to insert
 	// and store statement in table
 	pub async fn insert_one(&self, input: &T) -> Result<()> {
-
 		let sql = &self.meta.insert;
 		debug_sql!("insert_one", self.name, sql);
 
@@ -184,9 +183,8 @@ where T: TableTemplate {
 	pub async fn insert_many<B, I>(&self, input: I) -> Result<()>
 	where
 		B: Borrow<T>,
-		I: Iterator<Item=B>
+		I: Iterator<Item = B>,
 	{
-
 		let sql = &self.meta.insert;
 		debug_sql!("insert_many", self.name, sql);
 
@@ -209,12 +207,10 @@ where T: TableTemplate {
 		Ok(())
 	}
 
-
 	/*
 	SELECT id, name, FROM {}
 	*/
 	pub async fn find_all(&self) -> Result<Vec<T>> {
-
 		let sql = &self.meta.select;
 		debug_sql!("find_all", self.name, sql);
 
@@ -227,7 +223,6 @@ where T: TableTemplate {
 	}
 
 	pub async fn find_many(&self, where_query: Query<'_>) -> Result<Vec<T>> {
-
 		let mut query = Query::from_sql_str(self.meta.select.clone());
 
 		self.meta.info.validate_params(where_query.params())?;
@@ -248,7 +243,7 @@ where T: TableTemplate {
 
 	pub async fn find_one(
 		&self,
-		mut where_query: Query<'_>
+		mut where_query: Query<'_>,
 	) -> Result<Option<T>> {
 		where_query.sql.space_before("LIMIT 1");
 		let res = self.find_many(where_query).await?;
@@ -272,9 +267,10 @@ where T: TableTemplate {
 	}
 
 	pub async fn count_many<'a>(&self, where_query: Query<'a>) -> Result<u32> {
-		let mut query = Query::from_sql_str(
-			format!("SELECT COUNT(*) FROM \"{}\"", self.name)
-		);
+		let mut query = Query::from_sql_str(format!(
+			"SELECT COUNT(*) FROM \"{}\"",
+			self.name
+		));
 
 		if !where_query.is_empty() {
 			self.meta.info.validate_params(where_query.params())?;
@@ -293,17 +289,15 @@ where T: TableTemplate {
 
 		let data: ColumnData = row.try_get(0)?;
 
-		u32::from_data(data)
-			.map_err(Into::into)
+		u32::from_data(data).map_err(Into::into)
 	}
 
 	// update one
 	pub async fn update<'a>(
 		&self,
 		where_query: Query<'a>,
-		update_query: UpdateParams<'a>
+		update_query: UpdateParams<'a>,
 	) -> Result<()> {
-
 		// UPDATE table SET column WHERE
 		let mut query = update_query.into_query();
 		query.sql.space("WHERE");
@@ -311,11 +305,7 @@ where T: TableTemplate {
 
 		self.meta.info.validate_params(query.params())?;
 
-		let sql = format!(
-			"UPDATE \"{}\" SET {}",
-			self.name,
-			query.sql()
-		);
+		let sql = format!("UPDATE \"{}\" SET {}", self.name, query.sql());
 		debug_sql!("update", self.name, sql);
 		let params = query.to_sql_params();
 
@@ -328,9 +318,8 @@ where T: TableTemplate {
 	pub async fn update_full<'a>(
 		&self,
 		where_query: Query<'a>,
-		input: &'a T
+		input: &'a T,
 	) -> Result<()> {
-
 		let mut sql = self.meta.update_full.clone();
 
 		self.meta.info.validate_params(where_query.params())?;
@@ -355,14 +344,10 @@ where T: TableTemplate {
 
 	// delete one
 	pub async fn delete(&self, where_query: Query<'_>) -> Result<()> {
-
 		self.meta.info.validate_params(where_query.params())?;
 
-		let sql = format!(
-			"DELETE FROM \"{}\" WHERE {}",
-			self.name,
-			where_query.sql
-		);
+		let sql =
+			format!("DELETE FROM \"{}\" WHERE {}", self.name, where_query.sql);
 		debug_sql!("delete_many", self.name, sql);
 		let params = where_query.to_sql_params();
 
@@ -376,7 +361,7 @@ where T: TableTemplate {
 	pub async fn execute_raw(
 		&self,
 		sql: SqlBuilder,
-		data: &[ColumnData<'_>]
+		data: &[ColumnData<'_>],
 	) -> Result<()> {
 		let sql = sql.to_string();
 		debug_sql!("execute_raw", self.name, sql);
@@ -391,13 +376,15 @@ where T: TableTemplate {
 }
 
 impl<T> Clone for Table<T>
-where T: TableTemplate {
+where
+	T: TableTemplate,
+{
 	fn clone(&self) -> Self {
 		Self {
 			client: self.client.clone(),
 			name: self.name,
 			meta: self.meta.clone(),
-			phantom: PhantomData
+			phantom: PhantomData,
 		}
 	}
 }

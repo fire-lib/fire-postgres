@@ -1,26 +1,31 @@
-
 #[macro_export]
 macro_rules! try_res_opt {
-	($exp:expr) => (match $exp {
-		Ok(o) => $crate::try2!(o),
-		Err(e) => return Err(e.into())
-	})
+	($exp:expr) => {
+		match $exp {
+			Ok(o) => $crate::try2!(o),
+			Err(e) => return Err(e.into()),
+		}
+	};
 }
 
 #[macro_export]
 macro_rules! try2 {
-	($exp:expr) => (match $exp {
-		Some(o) => o,
-		None => return Ok(None)
-	})
+	($exp:expr) => {
+		match $exp {
+			Some(o) => o,
+			None => return Ok(None),
+		}
+	};
 }
 
 #[macro_export]
 macro_rules! try_vec {
-	($exp:expr) => (match $exp {
-		Some(o) => o,
-		None => return Ok(vec![])
-	})
+	($exp:expr) => {
+		match $exp {
+			Some(o) => o,
+			None => return Ok(vec![]),
+		}
+	};
 }
 
 /// ## Example
@@ -103,29 +108,39 @@ macro_rules! enum_u16 {// u32
 #[cfg(feature = "json")]
 #[macro_export]
 macro_rules! impl_json_col_type {
-	($struct:ident) => (
+	($struct:ident) => {
 		impl $crate::table::column::ColumnType for $struct {
-
 			fn column_kind() -> $crate::table::column::ColumnKind {
 				$crate::table::column::ColumnKind::Json
 			}
 
 			fn to_data(&self) -> $crate::table::column::ColumnData<'_> {
-				let s = $crate::serde_json::to_string(self)
-					.expect(&format!("could not serialize {}", stringify!($struct)));
+				let s = $crate::serde_json::to_string(self).expect(&format!(
+					"could not serialize {}",
+					stringify!($struct)
+				));
 				$crate::table::column::ColumnData::Text(s.into())
 			}
 
-			fn from_data(data: $crate::table::column::ColumnData) -> std::result::Result<Self, $crate::table::column::FromDataError> {
+			fn from_data(
+				data: $crate::table::column::ColumnData,
+			) -> std::result::Result<Self, $crate::table::column::FromDataError>
+			{
 				match data {
 					$crate::table::column::ColumnData::Text(s) => {
-						$crate::serde_json::from_str(s.as_str())
-							.map_err(|e| $crate::table::column::FromDataError::CustomString(e.to_string()))
-					},
-					_ => Err($crate::table::column::FromDataError::ExpectedType("str for json"))
+						$crate::serde_json::from_str(s.as_str()).map_err(|e| {
+							$crate::table::column::FromDataError::CustomString(
+								e.to_string(),
+							)
+						})
+					}
+					_ => {
+						Err($crate::table::column::FromDataError::ExpectedType(
+							"str for json",
+						))
+					}
 				}
 			}
-
 		}
-	)
+	};
 }

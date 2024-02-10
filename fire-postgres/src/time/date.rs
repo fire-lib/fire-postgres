@@ -1,19 +1,19 @@
 use super::DateTime;
-use crate::table::column::{ColumnType, ColumnKind, ColumnData, FromDataError};
+use crate::table::column::{ColumnData, ColumnKind, ColumnType, FromDataError};
 
-use std::fmt;
 use std::borrow::Cow;
+use std::fmt;
 use std::ops::{Add, Sub};
-use std::time::{Duration as StdDuration};
 use std::str::FromStr;
+use std::time::Duration as StdDuration;
 
-use chrono::{Utc, TimeZone};
-use chrono::Duration;
 use chrono::format::ParseError;
+use chrono::Duration;
+use chrono::{TimeZone, Utc};
 
-use serde::{Serialize, Deserialize};
-use serde::ser::Serializer;
 use serde::de::{Deserializer, Error};
+use serde::ser::Serializer;
+use serde::{Deserialize, Serialize};
 
 /// A date in utc
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -49,7 +49,10 @@ impl Date {
 		let pg_epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
 
 		// Calculate the difference in days
-		(self.0 - pg_epoch).num_days().try_into().expect("to many days")
+		(self.0 - pg_epoch)
+			.num_days()
+			.try_into()
+			.expect("to many days")
 	}
 
 	pub fn from_days_since_1970(days: i32) -> Self {
@@ -108,7 +111,7 @@ impl ColumnType for Date {
 	fn from_data(data: ColumnData) -> Result<Self, FromDataError> {
 		match data {
 			ColumnData::Date(m) => Ok(Self::from_days_since_1970(m)),
-			_ => Err(FromDataError::ExpectedType("Date"))
+			_ => Err(FromDataError::ExpectedType("Date")),
 		}
 	}
 }
@@ -132,32 +135,34 @@ impl FromStr for Date {
 
 impl Serialize for Date {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-	where S: Serializer {
+	where
+		S: Serializer,
+	{
 		serializer.serialize_str(&self.to_string())
 	}
 }
 
 impl<'de> Deserialize<'de> for Date {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-	where D: Deserializer<'de> {
+	where
+		D: Deserializer<'de>,
+	{
 		let s: Cow<'_, str> = Deserialize::deserialize(deserializer)?;
-		Date::from_str(s.as_ref())
-			.map_err(D::Error::custom)
+		Date::from_str(s.as_ref()).map_err(D::Error::custom)
 	}
 }
-
 
 #[cfg(feature = "protobuf")]
 mod protobuf {
 	use super::*;
 
 	use fire_protobuf::{
-		WireType,
+		bytes::BytesWrite,
+		decode::{DecodeError, DecodeMessage, FieldKind},
 		encode::{
-			EncodeMessage, MessageEncoder, FieldOpt, SizeBuilder, EncodeError
+			EncodeError, EncodeMessage, FieldOpt, MessageEncoder, SizeBuilder,
 		},
-		decode::{DecodeMessage, FieldKind, DecodeError},
-		bytes::BytesWrite
+		WireType,
 	};
 
 	impl EncodeMessage for Date {
@@ -170,7 +175,7 @@ mod protobuf {
 		fn encoded_size(
 			&mut self,
 			field: Option<FieldOpt>,
-			builder: &mut SizeBuilder
+			builder: &mut SizeBuilder,
 		) -> Result<(), EncodeError> {
 			self.to_days_since_1970().encoded_size(field, builder)
 		}
@@ -178,9 +183,11 @@ mod protobuf {
 		fn encode<B>(
 			&mut self,
 			field: Option<FieldOpt>,
-			encoder: &mut MessageEncoder<B>
+			encoder: &mut MessageEncoder<B>,
 		) -> Result<(), EncodeError>
-		where B: BytesWrite {
+		where
+			B: BytesWrite,
+		{
 			self.to_days_since_1970().encode(field, encoder)
 		}
 	}
@@ -195,7 +202,7 @@ mod protobuf {
 		fn merge(
 			&mut self,
 			kind: FieldKind<'m>,
-			is_field: bool
+			is_field: bool,
 		) -> Result<(), DecodeError> {
 			let mut n = 0i32;
 			n.merge(kind, is_field)?;
@@ -215,18 +222,21 @@ mod graphql {
 
 	#[graphql_scalar]
 	impl<S> GraphQlScalar for Date
-	where S: ScalarValue {
+	where
+		S: ScalarValue,
+	{
 		fn resolve(&self) -> Value {
 			Value::scalar(self.to_string())
 		}
 
 		fn from_input_value(value: &InputValue) -> Option<Date> {
-			value.as_string_value()
+			value
+				.as_string_value()
 				.and_then(|s| Date::from_str(s.as_ref()).ok())
 		}
 
 		fn from_str<'a>(
-			value: ScalarToken<'a>
+			value: ScalarToken<'a>,
 		) -> juniper::ParseScalarResult<'a, S> {
 			<String as juniper::ParseScalarValue<S>>::from_str(value)
 		}
@@ -237,7 +247,7 @@ mod graphql {
 mod tests {
 
 	use super::*;
-	use serde_json::{Value, from_value, from_str};
+	use serde_json::{from_str, from_value, Value};
 
 	#[test]
 	fn serde_test() {
@@ -252,5 +262,4 @@ mod tests {
 		assert_eq!(d.to_days_since_1970(), 19581);
 		assert_eq!(Date::from_days_since_1970(19581).to_string(), "2023-08-12");
 	}
-
 }

@@ -1,20 +1,20 @@
 use super::Date;
-use crate::table::column::{ColumnType, ColumnKind, ColumnData, FromDataError};
+use crate::table::column::{ColumnData, ColumnKind, ColumnType, FromDataError};
 
-use std::fmt;
 use std::borrow::Cow;
+use std::fmt;
 use std::ops::{Add, Sub};
 use std::time::{Duration as StdDuration, SystemTime};
 
-use chrono::Utc;
-use chrono::Duration;
-use chrono::naive::NaiveDateTime;
 use chrono::format::ParseError;
+use chrono::naive::NaiveDateTime;
 use chrono::offset::TimeZone;
+use chrono::Duration;
+use chrono::Utc;
 
-use serde::{Serialize, Deserialize};
-use serde::ser::Serializer;
 use serde::de::{Deserializer, Error};
+use serde::ser::Serializer;
+use serde::{Deserialize, Serialize};
 
 /// A DateTime in the utc timezone
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -61,7 +61,9 @@ impl DateTime {
 
 	pub fn to_microsecs_since_2000(&self) -> i64 {
 		let date = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
-		self.0.signed_duration_since(date).num_microseconds()
+		self.0
+			.signed_duration_since(date)
+			.num_microseconds()
 			.expect("value too large")
 	}
 
@@ -130,7 +132,7 @@ impl ColumnType for DateTime {
 	fn from_data(data: ColumnData) -> Result<Self, FromDataError> {
 		match data {
 			ColumnData::Timestamp(m) => Ok(Self::from_microsecs_since_2000(m)),
-			_ => Err(FromDataError::ExpectedType("Timestamp"))
+			_ => Err(FromDataError::ExpectedType("Timestamp")),
 		}
 	}
 }
@@ -146,32 +148,34 @@ impl fmt::Display for DateTime {
 
 impl Serialize for DateTime {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-	where S: Serializer {
+	where
+		S: Serializer,
+	{
 		serializer.serialize_str(&self.to_iso8601())
 	}
 }
 
 impl<'de> Deserialize<'de> for DateTime {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-	where D: Deserializer<'de> {
+	where
+		D: Deserializer<'de>,
+	{
 		let s: Cow<'_, str> = Deserialize::deserialize(deserializer)?;
-		DateTime::parse_from_iso8601(s.as_ref())
-			.map_err(D::Error::custom)
+		DateTime::parse_from_iso8601(s.as_ref()).map_err(D::Error::custom)
 	}
 }
-
 
 #[cfg(feature = "protobuf")]
 mod protobuf {
 	use super::*;
 
 	use fire_protobuf::{
-		WireType,
+		bytes::BytesWrite,
+		decode::{DecodeError, DecodeMessage, FieldKind},
 		encode::{
-			EncodeMessage, MessageEncoder, FieldOpt, SizeBuilder, EncodeError
+			EncodeError, EncodeMessage, FieldOpt, MessageEncoder, SizeBuilder,
 		},
-		decode::{DecodeMessage, FieldKind, DecodeError},
-		bytes::BytesWrite
+		WireType,
 	};
 
 	impl EncodeMessage for DateTime {
@@ -184,7 +188,7 @@ mod protobuf {
 		fn encoded_size(
 			&mut self,
 			field: Option<FieldOpt>,
-			builder: &mut SizeBuilder
+			builder: &mut SizeBuilder,
 		) -> Result<(), EncodeError> {
 			self.to_microsecs_since_2000().encoded_size(field, builder)
 		}
@@ -192,9 +196,11 @@ mod protobuf {
 		fn encode<B>(
 			&mut self,
 			field: Option<FieldOpt>,
-			encoder: &mut MessageEncoder<B>
+			encoder: &mut MessageEncoder<B>,
 		) -> Result<(), EncodeError>
-		where B: BytesWrite {
+		where
+			B: BytesWrite,
+		{
 			self.to_microsecs_since_2000().encode(field, encoder)
 		}
 	}
@@ -209,7 +215,7 @@ mod protobuf {
 		fn merge(
 			&mut self,
 			kind: FieldKind<'m>,
-			is_field: bool
+			is_field: bool,
 		) -> Result<(), DecodeError> {
 			let mut n = 0i64;
 			n.merge(kind, is_field)?;
@@ -229,18 +235,21 @@ mod graphql {
 
 	#[graphql_scalar]
 	impl<S> GraphQlScalar for DateTime
-	where S: ScalarValue {
+	where
+		S: ScalarValue,
+	{
 		fn resolve(&self) -> Value {
 			Value::scalar(self.to_string())
 		}
 
 		fn from_input_value(value: &InputValue) -> Option<DateTime> {
-			value.as_string_value()
+			value
+				.as_string_value()
 				.and_then(|s| DateTime::parse_from_iso8601(s.as_ref()).ok())
 		}
 
 		fn from_str<'a>(
-			value: ScalarToken<'a>
+			value: ScalarToken<'a>,
 		) -> juniper::ParseScalarResult<'a, S> {
 			<String as juniper::ParseScalarValue<S>>::from_str(value)
 		}
@@ -251,7 +260,7 @@ mod graphql {
 mod tests {
 
 	use super::*;
-	use serde_json::{Value, from_value, from_str};
+	use serde_json::{from_str, from_value, Value};
 
 	#[test]
 	fn serde_test() {
@@ -263,5 +272,4 @@ mod tests {
 		let d: DateTime = from_value(v).unwrap();
 		assert_eq!(d.to_string(), "2021-04-26T08:16:02+00:00");
 	}
-
 }
