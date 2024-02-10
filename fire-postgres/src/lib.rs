@@ -32,6 +32,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub mod hash;
 
 mod macros;
+pub mod utils;
 
 mod impl_crypto;
 

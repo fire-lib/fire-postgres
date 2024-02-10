@@ -16,10 +16,12 @@ pub struct Database {
 }
 
 impl Database {
+	/// Create a new database
 	pub async fn new(name: &str, user: &str, password: &str) -> Self {
 		Self::with_host("localhost", name, user, password).await
 	}
 
+	/// Create a new database with a host
 	pub async fn with_host(
 		host: &str,
 		name: &str,
@@ -70,6 +72,7 @@ impl Database {
 		Self { client }
 	}
 
+	/// Get a table from the database
 	pub fn table<T>(&self, name: &'static str) -> Table<T>
 	where
 		T: TableTemplate,

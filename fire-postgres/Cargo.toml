@@ -1,16 +1,21 @@
 [package]
 name = "fire-postgres"
 description = "A async postgres driver focused on ease of use"
-version = "0.1.21"
+version = "0.1.22"
 authors = ["Sören Meier <info@soerenmeier.ch>"]
 homepage = "https://fire-lib.com/"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-rust-version = "1.66"
+rust-version = "1.67"
 
 [features]
 default = ["connect"]
-connect = ["dep:tokio-postgres", "dep:postgres-types", "dep:postgres-protocol", "dep:tokio"]
+connect = [
+	"dep:tokio-postgres",
+	"dep:postgres-types",
+	"dep:postgres-protocol",
+	"dep:tokio",
+]
 hash = ["dep:bcrypt"]
 # deprecated
 show-sql = []

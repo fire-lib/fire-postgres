@@ -58,4 +58,4 @@ impl Info {
 }
 
 #[derive(Debug, Clone)]
-pub struct ValidateParamsError(String);
+pub struct ValidateParamsError(pub String);
