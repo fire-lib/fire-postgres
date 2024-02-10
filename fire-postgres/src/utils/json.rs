@@ -4,6 +4,8 @@ use serde::Serialize;
 
 use crate::table::column::{ColumnData, ColumnKind, ColumnType, FromDataError};
 
+#[repr(transparent)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// A type that holds a value which can be serialized or deserialized to json
 pub struct Json<T>(pub T);
 
