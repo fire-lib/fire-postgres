@@ -20,6 +20,9 @@ use serde::{Deserialize, Serialize};
 /// - 0..5 are seconds since the UNIX_EPOCH
 /// - 5..10 are random
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+// graphql
+#[cfg_attr(feature = "graphql", derive(juniper::GraphQLScalar))]
+#[cfg_attr(feature = "graphql", graphql(with = graphql))]
 pub struct UniqueId([u8; 10]);
 
 impl UniqueId {
@@ -60,7 +63,7 @@ impl UniqueId {
 		T: AsRef<[u8]>,
 	{
 		if b64.as_ref().len() != 14 {
-			return Err(DecodeError::InvalidLength);
+			return Err(DecodeError::InvalidLength(b64.as_ref().len()));
 		}
 
 		let mut bytes = [0u8; 10];
@@ -224,26 +227,27 @@ mod protobuf {
 mod graphql {
 	use super::*;
 
-	use juniper::{graphql_scalar, Value};
+	use juniper::{
+		Value, ScalarValue, InputValue, ScalarToken, ParseScalarResult
+	};
 
-	#[graphql_scalar]
-	impl<S> GraphQlScalar for UniqueId
-	where
-		S: ScalarValue,
-	{
-		fn resolve(&self) -> Value {
-			Value::scalar(self.to_string())
-		}
+	pub(crate) fn to_output<S: ScalarValue>(v: &UniqueId) -> Value<S> {
+		Value::scalar(v.to_string())
+	}
 
-		fn from_input_value(value: &InputValue) -> Option<UniqueId> {
-			value.as_string_value().and_then(|s| s.parse().ok())
-		}
+	pub(crate) fn from_input<S: ScalarValue>(
+		v: &InputValue<S>
+	) -> Result<UniqueId, String> {
+		v.as_string_value()
+			.ok_or("Expected a string")?
+			.parse()
+			.map_err(|e: DecodeError| e.to_string())
+	}
 
-		fn from_str<'a>(
-			value: ScalarToken<'a>,
-		) -> juniper::ParseScalarResult<'a, S> {
-			<String as juniper::ParseScalarValue<S>>::from_str(value)
-		}
+	pub(crate) fn parse_token<S: ScalarValue>(
+		value: ScalarToken<'_>
+	) -> ParseScalarResult<S> {
+		<String as juniper::ParseScalarValue<S>>::from_str(value)
 	}
 }
 

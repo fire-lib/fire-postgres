@@ -7,7 +7,6 @@ use std::ops::{Add, Sub};
 use std::time::{Duration as StdDuration, SystemTime};
 
 use chrono::format::ParseError;
-use chrono::naive::NaiveDateTime;
 use chrono::offset::TimeZone;
 use chrono::Duration;
 use chrono::Utc;
@@ -18,13 +17,17 @@ use serde::{Deserialize, Serialize};
 
 /// A DateTime in the utc timezone
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// graphql
+#[cfg_attr(feature = "graphql", derive(juniper::GraphQLScalar))]
+#[cfg_attr(feature = "graphql", graphql(with = graphql))]
 pub struct DateTime(chrono::DateTime<Utc>);
 
 impl DateTime {
 	pub fn new(secs: i64, ns: u32) -> Self {
-		let naive = NaiveDateTime::from_timestamp_opt(secs, ns)
+		let datetime = chrono::DateTime::from_timestamp(secs, ns)
 			.expect("secs and ns out of range");
-		Self(Utc.from_utc_datetime(&naive))
+
+		Self(datetime)
 	}
 
 	pub fn now() -> Self {
@@ -231,28 +234,26 @@ mod protobuf {
 mod graphql {
 	use super::*;
 
-	use juniper::{graphql_scalar, Value};
+	use juniper::{
+		Value, ScalarValue, InputValue, ScalarToken, ParseScalarResult
+	};
 
-	#[graphql_scalar]
-	impl<S> GraphQlScalar for DateTime
-	where
-		S: ScalarValue,
-	{
-		fn resolve(&self) -> Value {
-			Value::scalar(self.to_string())
-		}
+	pub(crate) fn to_output<S: ScalarValue>(v: &DateTime) -> Value<S> {
+		Value::scalar(v.to_string())
+	}
 
-		fn from_input_value(value: &InputValue) -> Option<DateTime> {
-			value
-				.as_string_value()
-				.and_then(|s| DateTime::parse_from_iso8601(s.as_ref()).ok())
-		}
+	pub(crate) fn from_input<S: ScalarValue>(
+		v: &InputValue<S>
+	) -> Result<DateTime, String> {
+		v.as_string_value()
+			.and_then(|s| DateTime::parse_from_iso8601(s.as_ref()).ok())
+			.ok_or_else(|| "Expected a datetime in iso8601 format".into())
+	}
 
-		fn from_str<'a>(
-			value: ScalarToken<'a>,
-		) -> juniper::ParseScalarResult<'a, S> {
-			<String as juniper::ParseScalarValue<S>>::from_str(value)
-		}
+	pub(crate) fn parse_token<S: ScalarValue>(
+		value: ScalarToken<'_>
+	) -> ParseScalarResult<S> {
+		<String as juniper::ParseScalarValue<S>>::from_str(value)
 	}
 }
 
