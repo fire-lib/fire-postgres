@@ -138,7 +138,7 @@ fn parse_named_field(
 	// should build Attributes
 	// println!("parse named ident: {:?} attr: {:?}", name, field.attrs);
 	for attr in &field.attrs {
-		match &attr.path {
+		match &attr.path() {
 			p if p.is_ident("len") => {
 				let res: syn::LitInt = attr.parse_args()?;
 				len = quote!(Some(#res));
