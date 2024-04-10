@@ -193,7 +193,6 @@ mod impl_postgres {
 
 	use super::*;
 
-	use std::convert::TryFrom;
 	use std::error::Error;
 
 	use bytes::BytesMut;

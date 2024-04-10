@@ -1,7 +1,5 @@
 use super::{ColumnData, ColumnKind};
 
-use std::convert::TryFrom;
-
 #[derive(Debug)]
 pub enum FromDataError {
 	ExpectedType(&'static str),
