@@ -1,18 +1,12 @@
 use crate::table::{Table, TableTemplate};
 
-use std::sync::Arc;
+use deadpool_postgres::{Pool, Runtime};
 
-use tokio::sync::RwLock;
-use tokio::time::{sleep, Duration};
-
-use tokio_postgres::Client;
-use tokio_postgres::{connect, NoTls};
-
-pub(crate) type SharedClient = Arc<RwLock<Client>>;
+use tokio_postgres::NoTls;
 
 #[derive(Debug, Clone)]
 pub struct Database {
-	client: SharedClient,
+	pool: Pool,
 }
 
 impl Database {
@@ -28,48 +22,21 @@ impl Database {
 		user: &str,
 		password: &str,
 	) -> Self {
-		// let client = Client::with_uri_str("mongodb://localhost:27017")
-		//	.expect("Failed to initilize mongo client.");
-		let config = format!(
-			"host={} dbname={} user={} password={}",
-			host, name, user, password
-		);
+		let config = deadpool_postgres::Config {
+			host: Some(host.to_string()),
+			dbname: Some(name.to_string()),
+			user: Some(user.to_string()),
+			password: Some(password.to_string()),
+			..Default::default()
+		};
 
-		let (client, connection) = connect(&config, NoTls)
-			.await
-			.expect("Failed to initialize postgres client");
+		let pool = config.create_pool(Some(Runtime::Tokio1), NoTls).unwrap();
 
-		let client = Arc::new(RwLock::new(client));
+		// let's see if we can get a connection
+		let _client =
+			pool.get().await.expect("could not get a postgres client");
 
-		let bg_client = client.clone();
-		tokio::spawn(async move {
-			let mut connection = Some(connection);
-
-			loop {
-				if let Some(con) = connection.take() {
-					if let Err(e) = con.await {
-						tracing::error!("connection closed error: {}", e);
-					}
-				}
-
-				sleep(Duration::from_secs(5)).await;
-
-				let (client, con) = match connect(&config, NoTls).await {
-					Ok(o) => o,
-					Err(e) => {
-						tracing::error!("connection error: {}", e);
-						continue;
-					}
-				};
-
-				// yeah, we got a new connection
-				// let's replace the old one
-				connection = Some(con);
-				*bg_client.write().await = client;
-			}
-		});
-
-		Self { client }
+		Self { pool }
 	}
 
 	/// Get a table from the database
@@ -77,6 +44,6 @@ impl Database {
 	where
 		T: TableTemplate,
 	{
-		Table::new(self.client.clone(), name)
+		Table::new(self.pool.clone(), name)
 	}
 }

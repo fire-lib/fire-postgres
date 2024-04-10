@@ -1,12 +1,13 @@
+use deadpool_postgres::{Object, Pool};
+
 use super::column::ColumnType;
 use super::util::{
 	data_into_sql_params, info_data_to_sql, quote, rows_into_data,
 };
 use super::{ColumnData, Info, TableTemplate};
 
-use crate::database::SharedClient;
 use crate::query::{Query, SqlBuilder, UpdateParams};
-use crate::Result;
+use crate::{Error, Result};
 
 use std::borrow::Borrow;
 use std::marker::PhantomData;
@@ -38,7 +39,7 @@ pub struct Table<T>
 where
 	T: TableTemplate,
 {
-	client: SharedClient,
+	pool: Pool,
 	name: &'static str,
 	meta: Arc<TableMeta>,
 	phantom: PhantomData<T>,
@@ -48,7 +49,7 @@ impl<T> Table<T>
 where
 	T: TableTemplate,
 {
-	pub(crate) fn new(client: SharedClient, name: &'static str) -> Self {
+	pub(crate) fn new(pool: Pool, name: &'static str) -> Self {
 		let info = T::table_info();
 		let meta = TableMeta {
 			select: Self::create_select_sql(&info, name),
@@ -59,7 +60,7 @@ where
 		};
 
 		Self {
-			client,
+			pool,
 			name,
 			meta: Arc::new(meta),
 			phantom: PhantomData,
@@ -78,6 +79,13 @@ where
 
 	pub fn info(&self) -> &Info {
 		&self.meta.info
+	}
+
+	async fn get_client(&self) -> Result<Object> {
+		self.pool
+			.get()
+			.await
+			.map_err(|e| Error::Postgres(e.to_string()))
 	}
 
 	fn create_names_for_select(info: &Info) -> String {
@@ -131,9 +139,8 @@ where
 
 		debug_sql!("create", self.name, sql);
 
-		self.client
-			.read()
-			.await
+		self.get_client()
+			.await?
 			.batch_execute(sql.as_str())
 			.await
 			.map_err(Into::into)
@@ -170,7 +177,7 @@ where
 		let sql = &self.meta.insert;
 		debug_sql!("insert_one", self.name, sql);
 
-		let cl = self.client.read().await;
+		let cl = self.get_client().await?;
 
 		let data = input.to_data();
 		let params = data_into_sql_params(&data);
@@ -190,7 +197,7 @@ where
 
 		// we make a transaction so if an error should occur
 		// we don't insert any data
-		let mut cl = self.client.write().await;
+		let mut cl = self.get_client().await?;
 		let ts = cl.transaction().await?;
 
 		let stmt = ts.prepare(sql).await?;
@@ -215,7 +222,7 @@ where
 		debug_sql!("find_all", self.name, sql);
 
 		let rows = {
-			let cl = self.client.read().await;
+			let cl = self.get_client().await?;
 			cl.query(sql, &[]).await?
 		};
 
@@ -234,7 +241,7 @@ where
 		let params = query.to_sql_params();
 
 		let rows = {
-			let cl = self.client.read().await;
+			let cl = self.get_client().await?;
 			cl.query(&sql, params.as_slice()).await?
 		};
 
@@ -259,7 +266,7 @@ where
 		debug_sql!("find_many_raw", self.name, sql);
 
 		let rows = {
-			let cl = self.client.read().await;
+			let cl = self.get_client().await?;
 			cl.query(sql, &[]).await?
 		};
 
@@ -283,7 +290,7 @@ where
 		let params = query.to_sql_params();
 
 		let row = {
-			let cl = self.client.read().await;
+			let cl = self.get_client().await?;
 			cl.query_one(&sql, params.as_slice()).await?
 		};
 
@@ -309,7 +316,7 @@ where
 		debug_sql!("update", self.name, sql);
 		let params = query.to_sql_params();
 
-		let cl = self.client.read().await;
+		let cl = self.get_client().await?;
 		cl.execute(&sql, params.as_slice()).await?;
 
 		Ok(())
@@ -336,7 +343,7 @@ where
 		}
 		let params = data_into_sql_params(&data);
 
-		let cl = self.client.read().await;
+		let cl = self.get_client().await?;
 		cl.execute(&sql, params.as_slice()).await?;
 
 		Ok(())
@@ -351,7 +358,7 @@ where
 		debug_sql!("delete_many", self.name, sql);
 		let params = where_query.to_sql_params();
 
-		let cl = self.client.read().await;
+		let cl = self.get_client().await?;
 		cl.execute(&sql, params.as_slice()).await?;
 
 		Ok(())
@@ -368,7 +375,7 @@ where
 
 		let params = data_into_sql_params(data);
 
-		let cl = self.client.read().await;
+		let cl = self.get_client().await?;
 		cl.execute(&sql, params.as_slice()).await?;
 
 		Ok(())
@@ -381,7 +388,7 @@ where
 {
 	fn clone(&self) -> Self {
 		Self {
-			client: self.client.clone(),
+			pool: self.pool.clone(),
 			name: self.name,
 			meta: self.meta.clone(),
 			phantom: PhantomData,
