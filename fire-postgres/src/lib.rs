@@ -18,7 +18,9 @@ pub mod table;
 pub use types::time;
 pub use types::uid::UniqueId;
 
-pub mod query;
+pub mod filter;
+
+pub mod update;
 
 pub use fire_postgres_derive::{FromRow, TableTempl};
 

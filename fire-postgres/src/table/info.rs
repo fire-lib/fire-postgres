@@ -1,5 +1,5 @@
 use super::column::Column;
-use crate::query::Param;
+use crate::filter::Param;
 
 #[derive(Debug, Clone)]
 pub struct Info {

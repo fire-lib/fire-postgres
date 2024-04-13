@@ -5,7 +5,7 @@ use super::{Info, TableTemplate};
 
 use crate::connection::OwnedConnection;
 use crate::database::DatabaseError;
-use crate::query::{Filter, WhereFilter};
+use crate::filter::{Filter, WhereFilter};
 use crate::{filter, Database, Error, Result, Row};
 
 use std::borrow::Borrow;

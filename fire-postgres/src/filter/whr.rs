@@ -33,7 +33,7 @@ macro_rules! filter {
 
 	($($tt:tt)*) => ({
 		#[allow(unused_mut)]
-		let mut f = $crate::query::Filter::new();
+		let mut f = $crate::filter::Filter::new();
 		$crate::filter!(cont; f, $($tt)*);
 
 		f
@@ -59,7 +59,7 @@ macro_rules! filter {
 macro_rules! whr {
 	($($tt:tt)*) => ({
 		#[allow(unused_mut)]
-		let mut f = $crate::query::WhereFilter::new();
+		let mut f = $crate::filter::WhereFilter::new();
 		$crate::filter_inner!(f, $($tt)*);
 
 		f
@@ -137,39 +137,39 @@ macro_rules! whr_comp {
 	);
 
 	(symb; $f:ident, $name:expr, ~, $value:expr, $($tt:tt)*) => (
-		let param = $crate::query::Param::new_owned($name, format!("%{}%", $value));
+		let param = $crate::filter::Param::new_owned($name, format!("%{}%", $value));
 		$crate::whr_comp!(fin; $f, param, Like, $($tt)*);
 	);
 	(symb; $f:ident, $name:expr, ~=, $value:expr, $($tt:tt)*) => (
-		let param = $crate::query::Param::new_owned($name, format!("%{}", $value));
+		let param = $crate::filter::Param::new_owned($name, format!("%{}", $value));
 		$crate::whr_comp!(fin; $f, param, Like, $($tt)*);
 	);
 	(symb; $f:ident, $name:expr, =~, $value:expr, $($tt:tt)*) => (
-		let param = $crate::query::Param::new_owned($name, format!("{}%", $value));
+		let param = $crate::filter::Param::new_owned($name, format!("{}%", $value));
 		$crate::whr_comp!(fin; $f, param, Like, $($tt)*);
 	);
 	(symb; $f:ident, $name:expr, $symb:ident, $value:expr, $($tt:tt)*) => (
-		let param = $crate::query::Param::new($name, $value);
+		let param = $crate::filter::Param::new($name, $value);
 		$crate::whr_comp!(fin; $f, param, $symb, $($tt)*);
 	);
 	(fin; $f:ident, $param:expr, $symb:ident, $($tt:tt)*) => (
-		let symb = $crate::query::Operator::$symb;
+		let symb = $crate::filter::Operator::$symb;
 
 		let mut cont = true;
 
 		// todo: can this become a noop
 		if $param.is_null() {
 			match symb {
-				$crate::query::Operator::Eq => {
-					$f.whr.push($crate::query::WhereOperation {
-						kind: $crate::query::Operator::IsNull,
+				$crate::filter::Operator::Eq => {
+					$f.whr.push($crate::filter::WhereOperation {
+						kind: $crate::filter::Operator::IsNull,
 						column: $param.name.into()
 					});
 					cont = false;
 				},
-				$crate::query::Operator::Ne => {
-					$f.whr.push($crate::query::WhereOperation {
-						kind: $crate::query::Operator::IsNotNull,
+				$crate::filter::Operator::Ne => {
+					$f.whr.push($crate::filter::WhereOperation {
+						kind: $crate::filter::Operator::IsNotNull,
 						column: $param.name.into()
 					});
 					cont = false;
@@ -179,7 +179,7 @@ macro_rules! whr_comp {
 		}
 
 		if cont {
-			$f.whr.push($crate::query::WhereOperation {
+			$f.whr.push($crate::filter::WhereOperation {
 				kind: symb,
 				column: $param.name.into()
 			});
@@ -200,7 +200,7 @@ macro_rules! short_whr_in_comp {
 			let end = $value.iter().len() - 1;
 			for (i, v) in $value.iter().enumerate() {
 				$s.param();
-				$p.push($crate::query::Param::new($name, v));
+				$p.push($crate::filter::Param::new($name, v));
 				if i != end {
 					$s.space_after(",");
 				}
@@ -217,11 +217,11 @@ macro_rules! short_whr_in_comp {
 #[macro_export]
 macro_rules! whr_log {
 	($f:ident, AND $($tt:tt)+) => (
-		$f.whr.push($crate::query::WherePart::And);
+		$f.whr.push($crate::filter::WherePart::And);
 		$crate::filter_inner!($f, $($tt)+);
 	);
 	($f:ident, OR $($tt:tt)+) => (
-		$f.whr.push($crate::query::WherePart::Or);
+		$f.whr.push($crate::filter::WherePart::Or);
 		$crate::filter_inner!($f, $($tt)+);
 	);
 
@@ -273,7 +273,7 @@ macro_rules! filter_limit {
 	);
 
 	(val; $f:ident, $name:expr, $value:expr, $($tt:tt)*) => (
-		let param = $crate::query::Param::new($name, $value);
+		let param = $crate::filter::Param::new($name, $value);
 		$f.limit.set_param();
 		$f.params.push(param);
 
@@ -302,7 +302,7 @@ macro_rules! filter_offset {
 	);
 
 	(val; $f:ident, $name:literal, $value:expr, $($tt:tt)*) => (
-		let param = $crate::query::Param::new($name, $value);
+		let param = $crate::filter::Param::new($name, $value);
 		$f.offset.set_param();
 		$f.params.push(param);
 

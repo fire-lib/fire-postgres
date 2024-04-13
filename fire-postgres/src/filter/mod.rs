@@ -5,19 +5,9 @@ use tokio_postgres::types::ToSql;
 use types::time::{Date, DateTime, Timeout};
 use types::uid::UniqueId;
 
-// pub mod update;
 mod whr;
-// pub use update::UpdateParams;
 
 pub type SqlStr = Cow<'static, str>;
-
-// find query
-// select query
-// insert query
-// delete query
-// update query
-
-/// (Where, OrderBy, Limit, Offset)
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -180,13 +170,32 @@ impl Where {
 	fn is_empty(&self) -> bool {
 		self.inner.is_empty()
 	}
+
+	pub(crate) fn to_formatter<'a>(&'a self) -> WhereFormatter<'a> {
+		WhereFormatter {
+			whr: &self,
+			param_start: 0,
+		}
+	}
 }
 
-impl fmt::Display for Where {
+impl<'a> fmt::Display for Where {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let mut param_num = 0;
+		self.to_formatter().fmt(f)
+	}
+}
 
-		for part in &self.inner {
+pub(crate) struct WhereFormatter<'a> {
+	pub whr: &'a Where,
+	/// indexed by zero
+	pub param_start: usize,
+}
+
+impl<'a> fmt::Display for WhereFormatter<'a> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let mut param_num = self.param_start;
+
+		for part in &self.whr.inner {
 			match part {
 				WherePart::And => f.write_str(" AND ")?,
 				WherePart::Or => f.write_str(" OR ")?,
@@ -324,157 +333,6 @@ impl Offset {
 	}
 }
 
-// #[derive(Debug, Clone)]
-// enum SqlBuilderType {
-// 	NoSpace(SqlStr),
-// 	SpaceAfter(SqlStr),
-// 	SpaceBefore(SqlStr),
-// 	Space(SqlStr),
-// 	Param,
-// }
-
-// #[derive(Debug, Clone)]
-// pub struct SqlBuilder {
-// 	data: Vec<SqlBuilderType>,
-// }
-
-// impl SqlBuilder {
-// 	pub fn new() -> Self {
-// 		Self { data: vec![] }
-// 	}
-
-// 	pub fn from_sql_str(sql: impl Into<SqlStr>) -> Self {
-// 		Self {
-// 			data: vec![SqlBuilderType::SpaceAfter(sql.into())],
-// 		}
-// 	}
-
-// 	pub fn no_space(&mut self, s: impl Into<SqlStr>) {
-// 		self.data.push(SqlBuilderType::NoSpace(s.into()));
-// 	}
-
-// 	pub fn space_after(&mut self, s: impl Into<SqlStr>) {
-// 		self.data.push(SqlBuilderType::SpaceAfter(s.into()));
-// 	}
-
-// 	pub fn space_before(&mut self, s: impl Into<SqlStr>) {
-// 		self.data.push(SqlBuilderType::SpaceBefore(s.into()));
-// 	}
-
-// 	pub fn space(&mut self, s: impl Into<SqlStr>) {
-// 		self.data.push(SqlBuilderType::Space(s.into()));
-// 	}
-
-// 	pub fn param(&mut self) {
-// 		self.data.push(SqlBuilderType::Param);
-// 	}
-
-// 	pub fn prepend(&mut self, mut sql: SqlBuilder) {
-// 		sql.data.append(&mut self.data);
-// 		self.data = sql.data;
-// 	}
-
-// 	pub fn append(&mut self, mut sql: SqlBuilder) {
-// 		self.data.append(&mut sql.data);
-// 	}
-
-// 	pub fn is_empty(&self) -> bool {
-// 		self.data.is_empty()
-// 	}
-// }
-
-// impl fmt::Display for SqlBuilder {
-// 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-// 		let mut c = 0;
-// 		for d in &self.data {
-// 			match d {
-// 				SqlBuilderType::NoSpace(s) => {
-// 					f.write_str(s)?;
-// 				}
-// 				SqlBuilderType::SpaceAfter(s) => {
-// 					write!(f, "{} ", s)?;
-// 				}
-// 				SqlBuilderType::SpaceBefore(s) => {
-// 					write!(f, " {}", s)?;
-// 				}
-// 				SqlBuilderType::Space(s) => {
-// 					write!(f, " {} ", s)?;
-// 				}
-// 				SqlBuilderType::Param => {
-// 					c += 1;
-// 					write!(f, "${}", c)?;
-// 				}
-// 			}
-// 		}
-
-// 		Ok(())
-// 	}
-// }
-
-// #[derive(Debug, Clone)]
-// pub struct Query<'a> {
-// 	pub sql: SqlBuilder,
-// 	pub params: Vec<Param<'a>>,
-// }
-
-// impl<'a> Query<'a> {
-// 	pub fn new(sql: SqlBuilder, params: Vec<Param<'a>>) -> Self {
-// 		Self { sql, params }
-// 	}
-
-// 	pub fn from_sql_str(sql: impl Into<SqlStr>) -> Self {
-// 		Self {
-// 			sql: SqlBuilder::from_sql_str(sql),
-// 			params: vec![],
-// 		}
-// 	}
-
-// 	pub fn prepend(&mut self, sql: SqlBuilder, mut params: Vec<Param<'a>>) {
-// 		self.sql.prepend(sql);
-// 		params.append(&mut self.params);
-// 		self.params = params;
-// 	}
-
-// 	pub fn append(&mut self, mut query: Query<'a>) {
-// 		self.sql.append(query.sql);
-// 		self.params.append(&mut query.params);
-// 	}
-
-// 	pub fn append_raw(&mut self, sql: SqlBuilder, mut params: Vec<Param<'a>>) {
-// 		self.sql.append(sql);
-// 		self.params.append(&mut params);
-// 	}
-
-// 	pub fn sql(&self) -> &SqlBuilder {
-// 		&self.sql
-// 	}
-
-// 	pub fn params(&self) -> &[Param] {
-// 		self.params.as_slice()
-// 	}
-
-// 	pub fn is_empty(&self) -> bool {
-// 		self.sql.is_empty() && self.params.is_empty()
-// 	}
-
-// 	// pub fn params_data(&self) -> Vec<&ColumnData> {
-// 	// 	let mut v = Vec::with_capacity(self.params.len());
-// 	// 	for param in &self.params {
-// 	// 		v.push(param.data());
-// 	// 	}
-// 	// 	v
-// 	// }
-
-// 	// #[cfg(feature = "connect")]
-// 	pub fn to_sql_params(&self) -> Vec<&(dyn ToSql + Sync)> {
-// 		let mut v = Vec::with_capacity(self.params.len());
-// 		for param in &self.params {
-// 			v.push(param.data() as &(dyn ToSql + Sync));
-// 		}
-// 		v
-// 	}
-// }
-
 #[derive(Debug)]
 pub struct Params<'a> {
 	inner: Vec<Param<'a>>,
@@ -508,7 +366,6 @@ impl<'a> Params<'a> {
 #[non_exhaustive]
 pub struct Param<'a> {
 	pub name: &'static str,
-	// pub kind: ColumnKind,
 	pub data: CowParamData<'a>,
 	is_null: bool,
 }
@@ -535,15 +392,6 @@ impl<'a> Param<'a> {
 			data: CowParamData::Owned(Box::new(data)),
 		}
 	}
-
-	// pub fn data(&self) -> &ColumnData {
-	// 	&self.data
-	// }
-
-	// #[inline(always)]
-	// pub fn maybe_null(&self) -> bool {
-	// 	matches!(self.kind, ColumnKind::Option(_))
-	// }
 
 	pub fn is_null(&self) -> bool {
 		self.is_null
@@ -644,50 +492,3 @@ impl ParamData for email_address::EmailAddress {
 		false
 	}
 }
-
-// #[derive(Debug)]
-// pub struct LikeString<T> {
-// 	pub kind: LikeKind,
-// 	pub inner: T,
-// }
-
-// #[derive(Debug)]
-// pub enum LikeKind {
-// 	LeftRight,
-// 	Left,
-// 	Right,
-// }
-
-// impl<T> LikeString<T> {
-// 	pub fn left_right(inner: T) -> Self {
-// 		Self {
-// 			kind: LikeKind::LeftRight,
-// 			inner,
-// 		}
-// 	}
-// }
-
-// impl<T> ToSql for LikeString<T>
-// where
-// 	T: fmt::Display + fmt::Debug,
-// {
-// 	fn to_sql(
-// 		&self,
-// 		ty: &Type,
-// 		w: &mut bytes::BytesMut,
-// 	) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
-// 		let s = match self.kind {
-// 			LikeKind::LeftRight => format!("%{}%", self.inner),
-// 			LikeKind::Left => format!("%{}", self.inner),
-// 			LikeKind::Right => format!("{}%", self.inner),
-// 		};
-
-// 		ToSql::to_sql(&s, ty, w)
-// 	}
-
-// 	fn accepts(ty: &Type) -> bool {
-// 		<&str as ToSql>::accepts(ty)
-// 	}
-
-// 	to_sql_checked!();
-// }

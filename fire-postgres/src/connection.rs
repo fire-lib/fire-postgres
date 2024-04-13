@@ -17,12 +17,14 @@ use tokio_postgres::Statement;
 use tokio_postgres::ToStatement;
 use tracing::error;
 
-use crate::query::Filter;
-use crate::query::Limit;
+use crate::filter::Filter;
+use crate::filter::Limit;
+use crate::filter::WhereFilter;
 use crate::row::FromRowOwned;
 use crate::row::NamedColumns;
 use crate::row::RowStream;
 use crate::try2;
+use crate::update::ToUpdate;
 
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -198,10 +200,82 @@ impl Connection<'_> {
 			.await
 	}
 
-	// insert_one
+	// insert one
+	pub async fn insert<U>(&self, table: &str, item: &U) -> Result<(), Error>
+	where
+		U: ToUpdate,
+	{
+		let sql = format!(
+			"INSERT INTO \"{}\" ({}) VALUES ({})",
+			table,
+			U::insert_columns(),
+			U::insert_values()
+		);
+		let stmt = self.prepare_cached(&sql).await?;
+
+		self.execute(&stmt, item.params()).await.map(|_| ())
+	}
+
 	// insert_many
+	pub async fn insert_many<'a, U, I>(
+		&self,
+		table: &str,
+		items: I,
+	) -> Result<(), Error>
+	where
+		U: ToUpdate + 'a,
+		I: IntoIterator<Item = &'a U>,
+	{
+		let sql = format!(
+			"INSERT INTO \"{}\" ({}) VALUES ({})",
+			table,
+			U::insert_columns(),
+			U::insert_values()
+		);
+		let stmt = self.prepare_cached(&sql).await?;
+
+		for item in items {
+			self.execute(&stmt, item.params()).await?;
+		}
+
+		Ok(())
+	}
 
 	// update
+	pub async fn update<U>(
+		&self,
+		table: &str,
+		item: &U,
+		filter: impl Borrow<WhereFilter<'_>>,
+	) -> Result<(), Error>
+	where
+		U: ToUpdate,
+	{
+		let filter = filter.borrow();
+		let mut formatter = filter.whr.to_formatter();
+		formatter.param_start = U::params_len();
+
+		let sql = format!(
+			"UPDATE \"{}\" SET {}{}",
+			table,
+			U::update_columns(),
+			formatter
+		);
+		let stmt = self.prepare_cached(&sql).await?;
+
+		// we need to merge both params
+
+		self.execute_raw(
+			&stmt,
+			TwoExactSize(
+				item.params().into_iter().map(|p| *p),
+				filter.params.iter_to_sql(),
+			),
+		)
+		.await
+		.map(|_| ())
+	}
+
 	// delete
 
 	/// Like [`tokio_postgres::Client::prepare_typed()`] but uses a cached
@@ -445,4 +519,30 @@ fn slice_iter<'a>(
 	s: &'a [&'a (dyn ToSql + Sync)],
 ) -> impl ExactSizeIterator<Item = &'a dyn ToSql> + 'a {
 	s.iter().map(|s| *s as _)
+}
+
+struct TwoExactSize<I, J>(I, J);
+
+impl<I, J, T> Iterator for TwoExactSize<I, J>
+where
+	I: ExactSizeIterator<Item = T>,
+	J: ExactSizeIterator<Item = T>,
+{
+	type Item = T;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.0.next().or_else(|| self.1.next())
+	}
+
+	fn size_hint(&self) -> (usize, Option<usize>) {
+		let (a, b) = (self.0.size_hint(), self.1.size_hint());
+		(a.0 + b.0, a.1.and_then(|a| b.1.map(|b| a + b)))
+	}
+}
+
+impl<I, J, T> ExactSizeIterator for TwoExactSize<I, J>
+where
+	I: ExactSizeIterator<Item = T>,
+	J: ExactSizeIterator<Item = T>,
+{
 }
