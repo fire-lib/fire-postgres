@@ -1,13 +1,12 @@
 use deadpool_postgres::{Object, Pool};
 
-use super::column::ColumnType;
-use super::util::{
-	data_into_sql_params, info_data_to_sql, quote, rows_into_data,
-};
-use super::{ColumnData, Info, TableTemplate};
+use super::util::{info_data_to_sql, quote};
+use super::{Info, TableTemplate};
 
-use crate::query::{Query, SqlBuilder, UpdateParams};
-use crate::{Error, Result};
+use crate::connection::OwnedConnection;
+use crate::database::DatabaseError;
+use crate::query::{Filter, WhereFilter};
+use crate::{filter, Database, Error, Result, Row};
 
 use std::borrow::Borrow;
 use std::marker::PhantomData;
@@ -28,10 +27,9 @@ macro_rules! debug_sql {
 #[derive(Debug)]
 struct TableMeta {
 	info: Info,
-	select: String,
-	insert: String,
-	update_full: SqlBuilder,
-	names_for_select: String,
+	// insert: String,
+	// update_full: SqlBuilder,
+	// names_for_select: String,
 }
 
 #[derive(Debug)]
@@ -39,7 +37,7 @@ pub struct Table<T>
 where
 	T: TableTemplate,
 {
-	pool: Pool,
+	db: Database,
 	name: &'static str,
 	meta: Arc<TableMeta>,
 	phantom: PhantomData<T>,
@@ -49,18 +47,18 @@ impl<T> Table<T>
 where
 	T: TableTemplate,
 {
-	pub(crate) fn new(pool: Pool, name: &'static str) -> Self {
+	pub(crate) fn new(db: Database, name: &'static str) -> Self {
 		let info = T::table_info();
 		let meta = TableMeta {
-			select: Self::create_select_sql(&info, name),
-			insert: Self::create_insert_sql(&info, name),
-			update_full: Self::create_update_full(&info),
-			names_for_select: Self::create_names_for_select(&info),
+			// select: Self::create_select_sql(&info, name),
+			// insert: Self::create_insert_sql(&info, name),
+			// update_full: Self::create_update_full(&info),
+			// names_for_select: Self::create_names_for_select(&info),
 			info,
 		};
 
 		Self {
-			pool,
+			db,
 			name,
 			meta: Arc::new(meta),
 			phantom: PhantomData,
@@ -71,66 +69,66 @@ where
 		self.name
 	}
 
-	/// ## Example Output
-	/// `"a", "b"`
-	pub fn names_for_select(&self) -> &str {
-		&self.meta.names_for_select
-	}
+	// /// ## Example Output
+	// /// `"a", "b"`
+	// pub fn names_for_select(&self) -> &str {
+	// 	&self.meta.names_for_select
+	// }
 
 	pub fn info(&self) -> &Info {
 		&self.meta.info
 	}
 
-	async fn get_client(&self) -> Result<Object> {
-		self.pool
-			.get()
-			.await
-			.map_err(|e| Error::Postgres(e.to_string()))
-	}
+	// fn create_names_for_select(info: &Info) -> String {
+	// 	format!("\"{}\"", info.names().join("\", \""))
+	// }
 
-	fn create_names_for_select(info: &Info) -> String {
-		format!("\"{}\"", info.names().join("\", \""))
-	}
+	// fn create_select_sql(info: &Info, name: &str) -> String {
+	// 	let names = info.names();
+	// 	format!("SELECT \"{}\" FROM \"{}\"", names.join("\", \""), name)
+	// }
 
-	fn create_select_sql(info: &Info, name: &str) -> String {
-		let names = info.names();
-		format!("SELECT \"{}\" FROM \"{}\"", names.join("\", \""), name)
-	}
+	// fn create_insert_sql(info: &Info, name: &str) -> String {
+	// 	let mut names = vec![];
+	// 	let mut vals = vec![];
+	// 	for (i, col) in info.data().iter().enumerate() {
+	// 		names.push(quote(col.name));
+	// 		vals.push(format!("${}", i + 1));
+	// 	}
 
-	fn create_insert_sql(info: &Info, name: &str) -> String {
-		let mut names = vec![];
-		let mut vals = vec![];
-		for (i, col) in info.data().iter().enumerate() {
-			names.push(quote(col.name));
-			vals.push(format!("${}", i + 1));
-		}
+	// 	// maybe could prepare basic sql already??
+	// 	format!(
+	// 		"INSERT INTO \"{}\" ({}) VALUES ({})",
+	// 		name,
+	// 		names.join(", "),
+	// 		vals.join(", ")
+	// 	)
+	// }
 
-		// maybe could prepare basic sql already??
-		format!(
-			"INSERT INTO \"{}\" ({}) VALUES ({})",
-			name,
-			names.join(", "),
-			vals.join(", ")
-		)
-	}
+	// // we need to return an SqlBuilder and not just a string is since
+	// // the where clause could also contain some parameters which would reset
+	// // the param counter
+	// fn create_update_full(info: &Info) -> SqlBuilder {
+	// 	let mut sql = SqlBuilder::new();
 
-	// we need to return an SqlBuilder and not just a string is since
-	// the where clause could also contain some parameters which would reset
-	// the param counter
-	fn create_update_full(info: &Info) -> SqlBuilder {
-		let mut sql = SqlBuilder::new();
+	// 	let last = info.data().len() - 1;
+	// 	for (i, col) in info.data().iter().enumerate() {
+	// 		sql.space_after(format!("\"{}\" =", col.name));
+	// 		sql.param();
 
-		let last = info.data().len() - 1;
-		for (i, col) in info.data().iter().enumerate() {
-			sql.space_after(format!("\"{}\" =", col.name));
-			sql.param();
+	// 		if i != last {
+	// 			sql.space_after(",");
+	// 		}
+	// 	}
 
-			if i != last {
-				sql.space_after(",");
-			}
-		}
+	// 	sql
+	// }
 
-		sql
+	async fn get_conn(&self) -> Result<OwnedConnection> {
+		self.db.get().await.map_err(|e| match e {
+			DatabaseError::Other(e) => e.into(),
+			e => Error::Unknown(e.into()),
+		})
 	}
 
 	// Create
@@ -139,11 +137,11 @@ where
 
 		debug_sql!("create", self.name, sql);
 
-		self.get_client()
+		self.get_conn()
 			.await?
+			.connection()
 			.batch_execute(sql.as_str())
 			.await
-			.map_err(Into::into)
 	}
 
 	/// ## Panics
@@ -174,90 +172,79 @@ where
 	// maybe rename to insert
 	// and store statement in table
 	pub async fn insert_one(&self, input: &T) -> Result<()> {
-		let sql = &self.meta.insert;
-		debug_sql!("insert_one", self.name, sql);
+		// let sql = &self.meta.insert;
+		// debug_sql!("insert_one", self.name, sql);
 
-		let cl = self.get_client().await?;
+		// let cl = self.get_client().await?;
 
-		let data = input.to_data();
-		let params = data_into_sql_params(&data);
+		todo!()
+
+		// let data = input.to_data();
+		// let params = data_into_sql_params(&data);
 
 		// don't use a prepare statement since this is executed only once
-		cl.execute(sql, params.as_slice()).await?;
-		Ok(())
+		// cl.execute(sql, params.as_slice()).await?;
+		// Ok(())
 	}
 
-	pub async fn insert_many<B, I>(&self, input: I) -> Result<()>
-	where
-		B: Borrow<T>,
-		I: Iterator<Item = B>,
-	{
-		let sql = &self.meta.insert;
-		debug_sql!("insert_many", self.name, sql);
+	// pub async fn insert_many<B, I>(&self, input: I) -> Result<()>
+	// where
+	// 	B: Borrow<T>,
+	// 	I: Iterator<Item = B>,
+	// {
+	// 	let sql = &self.meta.insert;
+	// 	debug_sql!("insert_many", self.name, sql);
 
-		// we make a transaction so if an error should occur
-		// we don't insert any data
-		let mut cl = self.get_client().await?;
-		let ts = cl.transaction().await?;
+	// 	// we make a transaction so if an error should occur
+	// 	// we don't insert any data
+	// 	let mut cl = self.get_client().await?;
+	// 	let ts = cl.transaction().await?;
 
-		let stmt = ts.prepare(sql).await?;
+	// 	let stmt = ts.prepare(sql).await?;
 
-		for input in input {
-			let data = input.borrow().to_data();
-			let params = data_into_sql_params(&data);
+	// 	for input in input {
+	// 		let data = input.borrow().to_data();
+	// 		let params = data_into_sql_params(&data);
 
-			ts.execute(&stmt, params.as_slice()).await?;
-		}
+	// 		ts.execute(&stmt, params.as_slice()).await?;
+	// 	}
 
-		ts.commit().await?;
+	// 	ts.commit().await?;
 
-		Ok(())
-	}
+	// 	Ok(())
+	// }
 
 	/*
 	SELECT id, name, FROM {}
 	*/
 	pub async fn find_all(&self) -> Result<Vec<T>> {
-		let sql = &self.meta.select;
-		debug_sql!("find_all", self.name, sql);
-
-		let rows = {
-			let cl = self.get_client().await?;
-			cl.query(sql, &[]).await?
-		};
-
-		rows_into_data(rows)
+		self.get_conn()
+			.await?
+			.connection()
+			.select(self.name, filter!())
+			.await
 	}
 
-	pub async fn find_many(&self, where_query: Query<'_>) -> Result<Vec<T>> {
-		let mut query = Query::from_sql_str(self.meta.select.clone());
-
-		self.meta.info.validate_params(where_query.params())?;
-		query.sql.space("WHERE");
-		query.append(where_query);
-
-		let sql = query.sql().to_string();
-		debug_sql!("find_many", self.name, sql);
-		let params = query.to_sql_params();
-
-		let rows = {
-			let cl = self.get_client().await?;
-			cl.query(&sql, params.as_slice()).await?
-		};
-
-		rows_into_data(rows)
+	pub async fn find_many(
+		&self,
+		filter: impl Borrow<Filter<'_>>,
+	) -> Result<Vec<T>> {
+		self.get_conn()
+			.await?
+			.connection()
+			.select(self.name, filter)
+			.await
 	}
 
 	pub async fn find_one(
 		&self,
-		mut where_query: Query<'_>,
+		filter: impl Borrow<Filter<'_>>,
 	) -> Result<Option<T>> {
-		where_query.sql.space_before("LIMIT 1");
-		let res = self.find_many(where_query).await?;
-
-		debug_assert!(res.len() <= 1);
-
-		Ok(res.into_iter().next())
+		self.get_conn()
+			.await?
+			.connection()
+			.select_opt(self.name, filter)
+			.await
 	}
 
 	/// expects the rows to be in the order which get's returned by
@@ -265,121 +252,116 @@ where
 	pub async fn find_many_raw(&self, sql: &str) -> Result<Vec<T>> {
 		debug_sql!("find_many_raw", self.name, sql);
 
-		let rows = {
-			let cl = self.get_client().await?;
-			cl.query(sql, &[]).await?
-		};
-
-		rows_into_data(rows)
+		self.get_conn().await?.connection().query(sql, &[]).await
 	}
 
-	pub async fn count_many<'a>(&self, where_query: Query<'a>) -> Result<u32> {
-		let mut query = Query::from_sql_str(format!(
-			"SELECT COUNT(*) FROM \"{}\"",
-			self.name
-		));
+	pub async fn count_many<'a>(
+		&self,
+		filter: impl Borrow<Filter<'_>>,
+	) -> Result<u32> {
+		let sql = format!(
+			"SELECT COUNT(*) FROM \"{}\"{}",
+			self.name,
+			filter.borrow()
+		);
 
-		if !where_query.is_empty() {
-			self.meta.info.validate_params(where_query.params())?;
-			query.sql.space("WHERE");
-			query.append(where_query);
-		}
-
-		let sql = query.sql().to_string();
 		debug_sql!("count_many", self.name, sql);
-		let params = query.to_sql_params();
 
-		let row = {
-			let cl = self.get_client().await?;
-			cl.query_one(&sql, params.as_slice()).await?
+		let row: Option<Row> = {
+			self.get_conn()
+				.await?
+				.connection()
+				.query_raw_opt(
+					sql.as_str(),
+					filter.borrow().params.iter_to_sql(),
+				)
+				.await?
 		};
 
-		let data: ColumnData = row.try_get(0)?;
-
-		u32::from_data(data).map_err(Into::into)
+		Ok(row.map(|row| row.get(0)).unwrap_or(0))
 	}
 
-	// update one
-	pub async fn update<'a>(
-		&self,
-		where_query: Query<'a>,
-		update_query: UpdateParams<'a>,
-	) -> Result<()> {
-		// UPDATE table SET column WHERE
-		let mut query = update_query.into_query();
-		query.sql.space("WHERE");
-		query.append(where_query);
+	// // update one
+	// pub async fn update<'a>(
+	// 	&self,
+	// 	where_query: Query<'a>,
+	// 	update_query: UpdateParams<'a>,
+	// ) -> Result<()> {
+	// 	// UPDATE table SET column WHERE
+	// 	let mut query = update_query.into_query();
+	// 	query.sql.space("WHERE");
+	// 	query.append(where_query);
 
-		self.meta.info.validate_params(query.params())?;
+	// 	self.meta.info.validate_params(query.params())?;
 
-		let sql = format!("UPDATE \"{}\" SET {}", self.name, query.sql());
-		debug_sql!("update", self.name, sql);
-		let params = query.to_sql_params();
+	// 	let sql = format!("UPDATE \"{}\" SET {}", self.name, query.sql());
+	// 	debug_sql!("update", self.name, sql);
+	// 	let params = query.to_sql_params();
 
-		let cl = self.get_client().await?;
-		cl.execute(&sql, params.as_slice()).await?;
+	// 	let cl = self.get_client().await?;
+	// 	cl.execute(&sql, params.as_slice()).await?;
 
-		Ok(())
-	}
+	// 	Ok(())
+	// }
 
-	pub async fn update_full<'a>(
-		&self,
-		where_query: Query<'a>,
-		input: &'a T,
-	) -> Result<()> {
-		let mut sql = self.meta.update_full.clone();
+	// pub async fn update_full<'a>(
+	// 	&self,
+	// 	where_query: Query<'a>,
+	// 	input: &'a T,
+	// ) -> Result<()> {
+	// 	let mut sql = self.meta.update_full.clone();
 
-		self.meta.info.validate_params(where_query.params())?;
+	// 	self.meta.info.validate_params(where_query.params())?;
 
-		sql.space("WHERE");
-		sql.append(where_query.sql);
+	// 	sql.space("WHERE");
+	// 	sql.append(where_query.sql);
 
-		let sql = format!("UPDATE \"{}\" SET {}", self.name, sql);
-		debug_sql!("update_full", self.name, sql);
+	// 	let sql = format!("UPDATE \"{}\" SET {}", self.name, sql);
+	// 	debug_sql!("update_full", self.name, sql);
 
-		let mut data = input.to_data();
-		for param in where_query.params {
-			data.push(param.data);
-		}
-		let params = data_into_sql_params(&data);
+	// 	let mut data = input.to_data();
+	// 	for param in where_query.params {
+	// 		data.push(param.data);
+	// 	}
+	// 	let params = data_into_sql_params(&data);
 
-		let cl = self.get_client().await?;
-		cl.execute(&sql, params.as_slice()).await?;
+	// 	let cl = self.get_client().await?;
+	// 	cl.execute(&sql, params.as_slice()).await?;
 
-		Ok(())
-	}
+	// 	Ok(())
+	// }
 
 	// delete one
-	pub async fn delete(&self, where_query: Query<'_>) -> Result<()> {
-		self.meta.info.validate_params(where_query.params())?;
+	pub async fn delete(&self, where_query: WhereFilter<'_>) -> Result<()> {
+		// self.meta.info.validate_params(where_query.params())?;
 
-		let sql =
-			format!("DELETE FROM \"{}\" WHERE {}", self.name, where_query.sql);
+		let sql = format!("DELETE FROM \"{}\"{}", self.name, where_query);
 		debug_sql!("delete_many", self.name, sql);
-		let params = where_query.to_sql_params();
 
-		let cl = self.get_client().await?;
-		cl.execute(&sql, params.as_slice()).await?;
-
-		Ok(())
+		self.get_conn()
+			.await?
+			.connection()
+			.execute_raw(&sql, where_query.params.iter_to_sql())
+			.await
+			.map(|_| ())
 	}
 
-	/// this does not verify the params
-	pub async fn execute_raw(
-		&self,
-		sql: SqlBuilder,
-		data: &[ColumnData<'_>],
-	) -> Result<()> {
-		let sql = sql.to_string();
-		debug_sql!("execute_raw", self.name, sql);
+	// /// this does not verify the params
+	// pub async fn execute_raw(
+	// 	&self,
+	// 	sql: SqlBuilder,
+	// 	data: &[ColumnData<'_>],
+	// ) -> Result<()> {
+	// 	let sql = sql.to_string();
+	// 	debug_sql!("execute_raw", self.name, sql);
 
-		let params = data_into_sql_params(data);
+	// 	let params = data_into_sql_params(data);
 
-		let cl = self.get_client().await?;
-		cl.execute(&sql, params.as_slice()).await?;
+	// 	let cl = self.get_client().await?;
+	// 	cl.execute(&sql, params.as_slice()).await?;
 
-		Ok(())
-	}
+	// 	Ok(())
+	// }
 }
 
 impl<T> Clone for Table<T>
@@ -388,7 +370,7 @@ where
 {
 	fn clone(&self) -> Self {
 		Self {
-			pool: self.pool.clone(),
+			db: self.db.clone(),
 			name: self.name,
 			meta: self.meta.clone(),
 			phantom: PhantomData,

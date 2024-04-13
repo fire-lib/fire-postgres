@@ -1,8 +1,5 @@
 mod column_type;
-pub use column_type::{ColumnType, FromDataError};
-
-mod data;
-pub use data::ColumnData;
+pub use column_type::ColumnType;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Column {
@@ -33,32 +30,6 @@ impl Column {
 
 		Self { name, kind, index }
 	}
-
-	/*pub fn name(&self) -> &'static str {
-		self.name
-	}
-
-	pub fn kind_string(&self) -> String {
-		self.kind.to_string(self.name)
-	}
-
-	pub fn index_str(&self) -> &'static str {
-		self.index.to_str()
-	}
-
-	pub fn not_null_str(&self) -> &'static str {
-		match self.index {
-			IndexKind::Primary => "",
-			_ => self.kind.not_null_str()
-		}
-	}
-
-	pub fn to_sql(&self) -> String {
-		let index_str = if self.index.is_constraint() {
-			self.index_str()
-		} else {""};
-		format!("{} {} {} {}", self.name(), self.kind_string(), index_str, self.not_null_str())
-	}*/
 }
 
 /*
@@ -139,35 +110,6 @@ pub enum IndexKind {
 }
 
 impl IndexKind {
-	/*pub fn parse(index: Option<&'static str>) -> Self {
-		if index.is_none() {return Self::None}
-		match index.unwrap() {
-			"primary" => Self::Primary,
-			"unique" => Self::Unique,
-			"index" => Self::Index,
-			"none" => Self::None,
-			"" => Self::None,
-			i => panic!("unknown index {}", i)
-		}
-	}*/
-
-	/*pub fn to_str(&self) -> &'static str {
-		match self {
-			Self::Primary => "primary key",
-			Self::Unique => "unique",
-			Self::Index => "index",
-			Self::None => ""
-		}
-	}*/
-
-	/*pub fn is_constraint(&self) -> bool {
-		match self {
-			Self::Primary |
-			Self::Unique => true,
-			_ => false
-		}
-	}*/
-
 	pub fn is_none(&self) -> bool {
 		matches!(self, Self::None)
 	}

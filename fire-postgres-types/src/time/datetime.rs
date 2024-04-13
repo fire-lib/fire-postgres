@@ -1,7 +1,5 @@
 use super::Date;
-use crate::table::column::{ColumnData, ColumnKind, ColumnType, FromDataError};
 
-use std::borrow::Cow;
 use std::fmt;
 use std::ops::{Add, Sub};
 use std::time::{Duration as StdDuration, SystemTime};
@@ -11,15 +9,11 @@ use chrono::offset::TimeZone;
 use chrono::Duration;
 use chrono::Utc;
 
-use serde::de::{Deserializer, Error};
-use serde::ser::Serializer;
-use serde::{Deserialize, Serialize};
-
 /// A DateTime in the utc timezone
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 // graphql
-#[cfg_attr(feature = "graphql", derive(juniper::GraphQLScalar))]
-#[cfg_attr(feature = "graphql", graphql(with = graphql))]
+#[cfg_attr(feature = "juniper", derive(juniper::GraphQLScalar))]
+#[cfg_attr(feature = "juniper", graphql(with = graphql))]
 pub struct DateTime(chrono::DateTime<Utc>);
 
 impl DateTime {
@@ -50,15 +44,15 @@ impl DateTime {
 		Self::new(secs as i64, ns as u32)
 	}
 
-	pub fn raw(&self) -> &chrono::DateTime<Utc> {
+	pub fn inner(&self) -> &chrono::DateTime<Utc> {
 		&self.0
 	}
 
-	pub fn raw_mut(&mut self) -> &mut chrono::DateTime<Utc> {
+	pub fn inner_mut(&mut self) -> &mut chrono::DateTime<Utc> {
 		&mut self.0
 	}
 
-	pub fn into_raw(self) -> chrono::DateTime<Utc> {
+	pub fn into_inner(self) -> chrono::DateTime<Utc> {
 		self.0
 	}
 
@@ -123,23 +117,6 @@ impl Sub<StdDuration> for DateTime {
 	}
 }
 
-// TABLE INFO
-
-impl ColumnType for DateTime {
-	fn column_kind() -> ColumnKind {
-		ColumnKind::Timestamp
-	}
-	fn to_data(&self) -> ColumnData<'_> {
-		ColumnData::Timestamp(self.to_microsecs_since_2000())
-	}
-	fn from_data(data: ColumnData) -> Result<Self, FromDataError> {
-		match data {
-			ColumnData::Timestamp(m) => Ok(Self::from_microsecs_since_2000(m)),
-			_ => Err(FromDataError::ExpectedType("Timestamp")),
-		}
-	}
-}
-
 // DISPLAY
 impl fmt::Display for DateTime {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -149,22 +126,72 @@ impl fmt::Display for DateTime {
 
 // SERDE
 
-impl Serialize for DateTime {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		S: Serializer,
-	{
-		serializer.serialize_str(&self.to_iso8601())
+#[cfg(feature = "serde")]
+mod impl_serde {
+	use super::*;
+
+	use std::borrow::Cow;
+
+	use serde::de::{Deserializer, Error};
+	use serde::ser::Serializer;
+	use serde::{Deserialize, Serialize};
+
+	impl Serialize for DateTime {
+		fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+		where
+			S: Serializer,
+		{
+			serializer.serialize_str(&self.to_iso8601())
+		}
+	}
+
+	impl<'de> Deserialize<'de> for DateTime {
+		fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+		where
+			D: Deserializer<'de>,
+		{
+			let s: Cow<'_, str> = Deserialize::deserialize(deserializer)?;
+			DateTime::parse_from_iso8601(s.as_ref()).map_err(D::Error::custom)
+		}
 	}
 }
 
-impl<'de> Deserialize<'de> for DateTime {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-	where
-		D: Deserializer<'de>,
-	{
-		let s: Cow<'_, str> = Deserialize::deserialize(deserializer)?;
-		DateTime::parse_from_iso8601(s.as_ref()).map_err(D::Error::custom)
+#[cfg(feature = "postgres")]
+mod postgres {
+	use super::*;
+	use bytes::BytesMut;
+	use postgres_protocol::types;
+	use postgres_types::{
+		accepts, to_sql_checked, FromSql, IsNull, ToSql, Type,
+	};
+
+	impl ToSql for DateTime {
+		fn to_sql(
+			&self,
+			_ty: &Type,
+			out: &mut BytesMut,
+		) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
+			types::timestamp_to_sql(self.to_microsecs_since_2000(), out);
+
+			Ok(IsNull::No)
+		}
+
+		accepts!(TIMESTAMP);
+
+		to_sql_checked!();
+	}
+
+	impl<'a> FromSql<'a> for DateTime {
+		fn from_sql(
+			_ty: &Type,
+			raw: &'a [u8],
+		) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+			let micros = types::timestamp_from_sql(raw)?;
+
+			Ok(DateTime::from_microsecs_since_2000(micros))
+		}
+
+		accepts!(TIMESTAMP);
 	}
 }
 
@@ -230,12 +257,12 @@ mod protobuf {
 	}
 }
 
-#[cfg(feature = "graphql")]
+#[cfg(feature = "juniper")]
 mod graphql {
 	use super::*;
 
 	use juniper::{
-		Value, ScalarValue, InputValue, ScalarToken, ParseScalarResult
+		InputValue, ParseScalarResult, ScalarToken, ScalarValue, Value,
 	};
 
 	pub(crate) fn to_output<S: ScalarValue>(v: &DateTime) -> Value<S> {
@@ -243,7 +270,7 @@ mod graphql {
 	}
 
 	pub(crate) fn from_input<S: ScalarValue>(
-		v: &InputValue<S>
+		v: &InputValue<S>,
 	) -> Result<DateTime, String> {
 		v.as_string_value()
 			.and_then(|s| DateTime::parse_from_iso8601(s.as_ref()).ok())
@@ -251,13 +278,13 @@ mod graphql {
 	}
 
 	pub(crate) fn parse_token<S: ScalarValue>(
-		value: ScalarToken<'_>
+		value: ScalarToken<'_>,
 	) -> ParseScalarResult<S> {
 		<String as juniper::ParseScalarValue<S>>::from_str(value)
 	}
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "serde"))]
 mod tests {
 
 	use super::*;

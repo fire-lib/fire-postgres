@@ -3,4 +3,4 @@ resolver = "2"
 members = [
 	"fire-postgres",
 	"fire-postgres-derive"
-]
+, "fire-postgres-types"]

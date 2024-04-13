@@ -2,41 +2,28 @@
 #![allow(clippy::never_loop)]
 #![allow(clippy::new_without_default)]
 
-#[cfg(feature = "connect")]
 pub mod database;
-#[cfg(feature = "connect")]
 pub use database::Database;
 
+pub mod connection;
+pub use connection::Connection;
+pub use connection::Error;
+
+pub mod row;
+pub use row::Row;
+
 pub mod table;
-#[cfg(feature = "connect")]
-pub use table::Table;
+// pub use table::Table;
 
-pub mod uid;
-pub use uid::UniqueId;
-
-pub mod time;
+pub use types::time;
+pub use types::uid::UniqueId;
 
 pub mod query;
 
 pub use fire_postgres_derive::TableTempl;
 
-#[cfg(feature = "connect")]
-pub mod error;
-#[cfg(feature = "connect")]
-pub use error::Error;
-
-#[cfg(feature = "connect")]
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[cfg(feature = "hash")]
-pub mod hash;
-
 mod macros;
-pub mod utils;
 
-mod impl_crypto;
-
-// reexport for json macro
-#[cfg(feature = "json")]
-#[doc(hidden)]
-pub use serde_json;
+// mod impl_crypto;

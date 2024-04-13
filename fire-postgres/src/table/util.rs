@@ -1,32 +1,9 @@
 use super::column::{Column, IndexKind};
-use super::{ColumnData, TableTemplate};
+use super::TableTemplate;
 use crate::Result;
 
 use tokio_postgres::row::Row;
 use tokio_postgres::types::ToSql;
-
-pub fn data_into_sql_params<'a>(
-	data: &'a [ColumnData],
-) -> Vec<&'a (dyn ToSql + Sync)> {
-	data.iter().map(|d| d as &(dyn ToSql + Sync)).collect()
-}
-
-pub fn rows_into_data<T>(rows: Vec<Row>) -> Result<Vec<T>>
-where
-	T: TableTemplate,
-{
-	let mut new_rows = Vec::with_capacity(rows.len());
-
-	for row in rows {
-		let mut data: Vec<ColumnData> = Vec::with_capacity(row.len());
-		for i in 0..row.len() {
-			data.push(row.try_get(i)?);
-		}
-		new_rows.push(T::from_data(data)?);
-	}
-
-	Ok(new_rows)
-}
 
 pub fn info_data_to_sql(name: &str, data: &[Column]) -> String {
 	let mut primary_indexes = vec![];

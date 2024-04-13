@@ -1,7 +1,6 @@
 use super::DateTime;
-use crate::table::column::{ColumnData, ColumnKind, ColumnType, FromDataError};
+// use crate::table::column::{ColumnData, ColumnKind, ColumnType, FromDataError};
 
-use std::borrow::Cow;
 use std::fmt;
 use std::ops::{Add, Sub};
 use std::str::FromStr;
@@ -11,15 +10,11 @@ use chrono::format::ParseError;
 use chrono::Duration;
 use chrono::{TimeZone, Utc};
 
-use serde::de::{Deserializer, Error};
-use serde::ser::Serializer;
-use serde::{Deserialize, Serialize};
-
 /// A date in utc
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 // graphql
-#[cfg_attr(feature = "graphql", derive(juniper::GraphQLScalar))]
-#[cfg_attr(feature = "graphql", graphql(with = graphql))]
+#[cfg_attr(feature = "juniper", derive(juniper::GraphQLScalar))]
+#[cfg_attr(feature = "juniper", graphql(with = graphql))]
 pub struct Date(chrono::NaiveDate);
 
 impl Date {
@@ -104,20 +99,20 @@ impl Sub<StdDuration> for Date {
 
 // TABLE INFO
 
-impl ColumnType for Date {
-	fn column_kind() -> ColumnKind {
-		ColumnKind::Date
-	}
-	fn to_data(&self) -> ColumnData<'_> {
-		ColumnData::Date(self.to_days_since_1970())
-	}
-	fn from_data(data: ColumnData) -> Result<Self, FromDataError> {
-		match data {
-			ColumnData::Date(m) => Ok(Self::from_days_since_1970(m)),
-			_ => Err(FromDataError::ExpectedType("Date")),
-		}
-	}
-}
+// impl ColumnType for Date {
+// 	fn column_kind() -> ColumnKind {
+// 		ColumnKind::Date
+// 	}
+// 	fn to_data(&self) -> ColumnData<'_> {
+// 		ColumnData::Date(self.to_days_since_1970())
+// 	}
+// 	fn from_data(data: ColumnData) -> Result<Self, FromDataError> {
+// 		match data {
+// 			ColumnData::Date(m) => Ok(Self::from_days_since_1970(m)),
+// 			_ => Err(FromDataError::ExpectedType("Date")),
+// 		}
+// 	}
+// }
 
 // DISPLAY
 impl fmt::Display for Date {
@@ -136,22 +131,72 @@ impl FromStr for Date {
 
 // SERDE
 
-impl Serialize for Date {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		S: Serializer,
-	{
-		serializer.serialize_str(&self.to_string())
+#[cfg(feature = "serde")]
+mod impl_serde {
+	use super::*;
+
+	use std::borrow::Cow;
+
+	use serde::de::{Deserializer, Error};
+	use serde::ser::Serializer;
+	use serde::{Deserialize, Serialize};
+
+	impl Serialize for Date {
+		fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+		where
+			S: Serializer,
+		{
+			serializer.serialize_str(&self.to_string())
+		}
+	}
+
+	impl<'de> Deserialize<'de> for Date {
+		fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+		where
+			D: Deserializer<'de>,
+		{
+			let s: Cow<'_, str> = Deserialize::deserialize(deserializer)?;
+			Date::from_str(s.as_ref()).map_err(D::Error::custom)
+		}
 	}
 }
 
-impl<'de> Deserialize<'de> for Date {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-	where
-		D: Deserializer<'de>,
-	{
-		let s: Cow<'_, str> = Deserialize::deserialize(deserializer)?;
-		Date::from_str(s.as_ref()).map_err(D::Error::custom)
+#[cfg(feature = "postgres")]
+mod postgres {
+	use super::*;
+	use bytes::BytesMut;
+	use postgres_protocol::types;
+	use postgres_types::{
+		accepts, to_sql_checked, FromSql, IsNull, ToSql, Type,
+	};
+
+	impl ToSql for Date {
+		fn to_sql(
+			&self,
+			_ty: &Type,
+			out: &mut BytesMut,
+		) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
+			types::date_to_sql(self.to_days_since_1970(), out);
+
+			Ok(IsNull::No)
+		}
+
+		accepts!(DATE);
+
+		to_sql_checked!();
+	}
+
+	impl<'a> FromSql<'a> for Date {
+		fn from_sql(
+			_ty: &Type,
+			raw: &'a [u8],
+		) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+			let jd = types::date_from_sql(raw)?;
+
+			Ok(Date::from_days_since_1970(jd))
+		}
+
+		accepts!(DATE);
 	}
 }
 
@@ -217,12 +262,12 @@ mod protobuf {
 	}
 }
 
-#[cfg(feature = "graphql")]
+#[cfg(feature = "juniper")]
 mod graphql {
 	use super::*;
 
 	use juniper::{
-		Value, ScalarValue, InputValue, ScalarToken, ParseScalarResult
+		InputValue, ParseScalarResult, ScalarToken, ScalarValue, Value,
 	};
 
 	pub(crate) fn to_output<S: ScalarValue>(v: &Date) -> Value<S> {
@@ -230,7 +275,7 @@ mod graphql {
 	}
 
 	pub(crate) fn from_input<S: ScalarValue>(
-		v: &InputValue<S>
+		v: &InputValue<S>,
 	) -> Result<Date, String> {
 		v.as_string_value()
 			.and_then(|s| Date::from_str(s.as_ref()).ok())
@@ -238,13 +283,13 @@ mod graphql {
 	}
 
 	pub(crate) fn parse_token<S: ScalarValue>(
-		value: ScalarToken<'_>
+		value: ScalarToken<'_>,
 	) -> ParseScalarResult<S> {
 		<String as juniper::ParseScalarValue<S>>::from_str(value)
 	}
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "serde"))]
 mod tests {
 	use super::*;
 	use serde_json::{from_str, from_value, Value};

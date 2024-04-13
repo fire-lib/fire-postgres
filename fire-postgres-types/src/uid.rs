@@ -1,6 +1,3 @@
-use crate::table::column::{ColumnData, ColumnKind, ColumnType, FromDataError};
-
-use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -8,10 +5,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use base64::engine::{general_purpose::URL_SAFE_NO_PAD, Engine};
 use base64::DecodeError;
 use rand::{rngs::OsRng, RngCore};
-
-use serde::de::{Deserializer, Error};
-use serde::ser::Serializer;
-use serde::{Deserialize, Serialize};
 
 /// A UniqueId that can be used within a database.
 /// Is not cryptographically secure and could be bruteforced.
@@ -21,8 +14,8 @@ use serde::{Deserialize, Serialize};
 /// - 5..10 are random
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 // graphql
-#[cfg_attr(feature = "graphql", derive(juniper::GraphQLScalar))]
-#[cfg_attr(feature = "graphql", graphql(with = graphql))]
+#[cfg_attr(feature = "juniper", derive(juniper::GraphQLScalar))]
+#[cfg_attr(feature = "juniper", graphql(with = graphql))]
 pub struct UniqueId([u8; 10]);
 
 impl UniqueId {
@@ -112,56 +105,85 @@ impl FromStr for UniqueId {
 	}
 }
 
-impl From<DecodeError> for FromDataError {
-	fn from(e: DecodeError) -> Self {
-		Self::CustomString(format!("uniqueid decode error {:?}", e))
-	}
-}
+// SERDE
 
-impl ColumnType for UniqueId {
-	fn column_kind() -> ColumnKind {
-		ColumnKind::FixedText(14)
+#[cfg(feature = "serde")]
+mod impl_serde {
+	use super::*;
+
+	use std::borrow::Cow;
+
+	use serde::de::{Deserializer, Error};
+	use serde::ser::Serializer;
+	use serde::{Deserialize, Serialize};
+
+	impl Serialize for UniqueId {
+		fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+		where
+			S: Serializer,
+		{
+			serializer.serialize_str(&self.to_b64())
+		}
 	}
 
-	fn to_data(&self) -> ColumnData<'_> {
-		ColumnData::Text(self.to_b64().into())
-	}
-
-	fn from_data(data: ColumnData) -> Result<Self, FromDataError> {
-		match data {
-			ColumnData::Text(s) if s.len() == 14 => {
-				Ok(Self::parse_from_b64(s.as_str())?)
+	impl<'de> Deserialize<'de> for UniqueId {
+		fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+		where
+			D: Deserializer<'de>,
+		{
+			let s: Cow<'_, str> = Deserialize::deserialize(deserializer)?;
+			let s = s.as_ref();
+			if s.len() == 14 {
+				UniqueId::parse_from_b64(s).map_err(D::Error::custom)
+			} else {
+				Err(D::Error::custom(
+					"expected string with exactly 14 characters",
+				))
 			}
-			_ => Err(FromDataError::ExpectedType(
-				"char with 14 chars for unique id",
-			)),
 		}
 	}
 }
-// SERDE
 
-impl Serialize for UniqueId {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-	where
-		S: Serializer,
-	{
-		serializer.serialize_str(&self.to_b64())
+#[cfg(feature = "postgres")]
+mod postgres {
+	use bytes::BytesMut;
+	use postgres_types::{to_sql_checked, FromSql, IsNull, ToSql, Type};
+
+	use super::*;
+
+	impl ToSql for UniqueId {
+		fn to_sql(
+			&self,
+			ty: &Type,
+			out: &mut BytesMut,
+		) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>>
+		where
+			Self: Sized,
+		{
+			self.to_b64().to_sql(ty, out)
+		}
+
+		fn accepts(ty: &Type) -> bool
+		where
+			Self: Sized,
+		{
+			<&str as ToSql>::accepts(ty)
+		}
+
+		to_sql_checked!();
 	}
-}
 
-impl<'de> Deserialize<'de> for UniqueId {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-	where
-		D: Deserializer<'de>,
-	{
-		let s: Cow<'_, str> = Deserialize::deserialize(deserializer)?;
-		let s = s.as_ref();
-		if s.len() == 14 {
-			UniqueId::parse_from_b64(s).map_err(D::Error::custom)
-		} else {
-			Err(D::Error::custom(
-				"expected string with exactly 14 characters",
-			))
+	impl<'r> FromSql<'r> for UniqueId {
+		fn from_sql(
+			ty: &Type,
+			raw: &'r [u8],
+		) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+			let s = <&str as FromSql>::from_sql(ty, raw)?;
+			UniqueId::parse_from_b64(s).map_err(Into::into)
+		}
+
+		fn accepts(ty: &Type) -> bool {
+			<&str as FromSql>::accepts(ty)
 		}
 	}
 }
@@ -223,12 +245,12 @@ mod protobuf {
 	}
 }
 
-#[cfg(feature = "graphql")]
+#[cfg(feature = "juniper")]
 mod graphql {
 	use super::*;
 
 	use juniper::{
-		Value, ScalarValue, InputValue, ScalarToken, ParseScalarResult
+		InputValue, ParseScalarResult, ScalarToken, ScalarValue, Value,
 	};
 
 	pub(crate) fn to_output<S: ScalarValue>(v: &UniqueId) -> Value<S> {
@@ -236,7 +258,7 @@ mod graphql {
 	}
 
 	pub(crate) fn from_input<S: ScalarValue>(
-		v: &InputValue<S>
+		v: &InputValue<S>,
 	) -> Result<UniqueId, String> {
 		v.as_string_value()
 			.ok_or("Expected a string")?
@@ -245,13 +267,13 @@ mod graphql {
 	}
 
 	pub(crate) fn parse_token<S: ScalarValue>(
-		value: ScalarToken<'_>
+		value: ScalarToken<'_>,
 	) -> ParseScalarResult<S> {
 		<String as juniper::ParseScalarValue<S>>::from_str(value)
 	}
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "serde"))]
 mod tests {
 
 	use super::*;
