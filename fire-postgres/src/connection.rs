@@ -63,9 +63,9 @@ impl From<PgError> for Error {
 }
 
 #[derive(Debug)]
-pub struct OwnedConnection(pub(crate) Object);
+pub struct ConnectionOwned(pub(crate) Object);
 
-impl OwnedConnection {
+impl ConnectionOwned {
 	pub fn connection(&self) -> Connection {
 		Connection {
 			inner: ConnectionInner::Client(&self.0),

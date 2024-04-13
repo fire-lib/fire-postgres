@@ -6,7 +6,8 @@ use tokio_postgres::NoTls;
 pub use deadpool::managed::TimeoutType;
 pub use deadpool_postgres::{Config, ConfigError};
 
-use crate::connection::OwnedConnection;
+use crate::connection::ConnectionOwned;
+use crate::migrations::Migrations;
 use crate::table::TableOwned;
 use crate::table::TableTemplate;
 
@@ -19,6 +20,9 @@ pub enum DatabaseError {
 	#[error("Getting a connection timed out {0:?}")]
 	Timeout(TimeoutType),
 
+	#[error("Connection error {0}")]
+	Connection(#[from] crate::Error),
+
 	#[error("Postgres error {0}")]
 	Other(#[from] PgError),
 }
@@ -26,6 +30,7 @@ pub enum DatabaseError {
 #[derive(Debug, Clone)]
 pub struct Database {
 	pool: Pool,
+	migrations: Migrations,
 }
 
 impl Database {
@@ -65,15 +70,20 @@ impl Database {
 			},
 		)?;
 
-		let this = Self { pool };
+		let this = Self {
+			pool,
+			migrations: Migrations::new(),
+		};
 
 		// just make sure the connection worked
-		let _ = this.get().await?;
+		let mut db = this.get().await?;
+
+		this.migrations.init(&mut db).await?;
 
 		Ok(this)
 	}
 
-	pub async fn get(&self) -> Result<OwnedConnection, DatabaseError> {
+	pub async fn get(&self) -> Result<ConnectionOwned, DatabaseError> {
 		self.pool
 			.get()
 			.await
@@ -86,7 +96,11 @@ impl Database {
 					todo!("what is this error {e:?}?")
 				}
 			})
-			.map(OwnedConnection)
+			.map(ConnectionOwned)
+	}
+
+	pub fn migrations(&self) -> Migrations {
+		self.migrations.clone()
 	}
 
 	/// Get a table from the database

@@ -5,7 +5,7 @@
 use super::util::info_data_to_sql;
 use super::{Info, TableTemplate};
 
-use crate::connection::OwnedConnection;
+use crate::connection::ConnectionOwned;
 use crate::database::DatabaseError;
 use crate::filter::{Filter, WhereFilter};
 use crate::update::ToUpdate;
@@ -55,7 +55,7 @@ where
 		&self.meta.info
 	}
 
-	pub async fn get_conn(&self) -> Result<OwnedConnection> {
+	pub async fn get_conn(&self) -> Result<ConnectionOwned> {
 		self.db.get().await.map_err(|e| match e {
 			DatabaseError::Other(e) => e.into(),
 			e => Error::Unknown(e.into()),
