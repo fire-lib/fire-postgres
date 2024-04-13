@@ -1,9 +1,4 @@
 use super::column::{Column, IndexKind};
-use super::TableTemplate;
-use crate::Result;
-
-use tokio_postgres::row::Row;
-use tokio_postgres::types::ToSql;
 
 pub fn info_data_to_sql(name: &str, data: &[Column]) -> String {
 	let mut primary_indexes = vec![];

@@ -22,7 +22,7 @@ pub mod filter;
 
 pub mod update;
 
-pub use fire_postgres_derive::{FromRow, TableTempl};
+pub use fire_postgres_derive::{FromRow, TableTempl, ToUpdate};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

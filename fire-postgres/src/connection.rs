@@ -25,6 +25,7 @@ use crate::row::NamedColumns;
 use crate::row::RowStream;
 use crate::try2;
 use crate::update::ToUpdate;
+use crate::Row;
 
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -200,6 +201,32 @@ impl Connection<'_> {
 			.await
 	}
 
+	/// count
+	///
+	/// A column is required because you should select a column which has some
+	/// indexes on it, this makes the call a lot cheaper
+	pub async fn count(
+		&self,
+		table: &str,
+		column: &str,
+		filter: impl Borrow<Filter<'_>>,
+	) -> Result<u32, Error> {
+		let sql = format!(
+			"SELECT COUNT(\"{}\") FROM \"{}\"{}",
+			table,
+			column,
+			filter.borrow()
+		);
+		let stmt = self.prepare_cached(&sql).await?;
+
+		let row: Row = self
+			.query_raw_opt(&stmt, filter.borrow().params.iter_to_sql())
+			.await
+			.and_then(|opt| opt.ok_or(Error::ExpectedOneRow))?;
+
+		Ok(row.get(0))
+	}
+
 	// insert one
 	pub async fn insert<U>(&self, table: &str, item: &U) -> Result<(), Error>
 	where
@@ -213,7 +240,7 @@ impl Connection<'_> {
 		);
 		let stmt = self.prepare_cached(&sql).await?;
 
-		self.execute(&stmt, item.params()).await.map(|_| ())
+		self.execute_raw(&stmt, item.params()).await.map(|_| ())
 	}
 
 	// insert_many
@@ -235,7 +262,7 @@ impl Connection<'_> {
 		let stmt = self.prepare_cached(&sql).await?;
 
 		for item in items {
-			self.execute(&stmt, item.params()).await?;
+			self.execute_raw(&stmt, item.params()).await?;
 		}
 
 		Ok(())
@@ -267,16 +294,25 @@ impl Connection<'_> {
 
 		self.execute_raw(
 			&stmt,
-			TwoExactSize(
-				item.params().into_iter().map(|p| *p),
-				filter.params.iter_to_sql(),
-			),
+			TwoExactSize(item.params(), filter.params.iter_to_sql()),
 		)
 		.await
 		.map(|_| ())
 	}
 
 	// delete
+	pub async fn delete(
+		&self,
+		table: &str,
+		filter: impl Borrow<WhereFilter<'_>>,
+	) -> Result<(), Error> {
+		let sql = format!("DELETE FROM \"{}\"{}", table, filter.borrow());
+		let stmt = self.prepare_cached(&sql).await?;
+
+		self.execute_raw(&stmt, filter.borrow().params.iter_to_sql())
+			.await
+			.map(|_| ())
+	}
 
 	/// Like [`tokio_postgres::Client::prepare_typed()`] but uses a cached
 	/// statement if one exists.

@@ -1,5 +1,4 @@
 use super::column::Column;
-use crate::filter::Param;
 
 #[derive(Debug, Clone)]
 pub struct Info {
@@ -30,33 +29,6 @@ impl Info {
 	) -> impl ExactSizeIterator<Item = &'static str> + 'a {
 		self.data.iter().map(|v| v.name)
 	}
-
-	// pub fn validate_params(
-	// 	&self,
-	// 	params: &[Param],
-	// ) -> Result<(), ValidateParamsError> {
-	// 	'param_loop: for param in params {
-	// 		for col in &self.data {
-	// 			if param.name != col.name {
-	// 				continue;
-	// 			}
-
-	// 			if param.kind == col.kind {
-	// 				continue 'param_loop;
-	// 			} else {
-	// 				return Err(ValidateParamsError(format!(
-	// 					"{:?} != {:?}",
-	// 					param, col
-	// 				)));
-	// 			}
-	// 		}
-	// 		return Err(ValidateParamsError(format!(
-	// 			"param: {:?} not found",
-	// 			param.name
-	// 		)));
-	// 	}
-	// 	Ok(())
-	// }
 }
 
 #[derive(Debug, Clone)]

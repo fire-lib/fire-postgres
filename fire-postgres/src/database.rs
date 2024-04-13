@@ -1,5 +1,3 @@
-// use crate::table::{Table, TableTemplate};
-
 use deadpool_postgres::{CreatePoolError, Pool, PoolError, Runtime};
 
 use tokio_postgres::Error as PgError;
@@ -9,6 +7,8 @@ pub use deadpool::managed::TimeoutType;
 pub use deadpool_postgres::{Config, ConfigError};
 
 use crate::connection::OwnedConnection;
+use crate::table::Table;
+use crate::table::TableTemplate;
 
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -89,11 +89,11 @@ impl Database {
 			.map(OwnedConnection)
 	}
 
-	// /// Get a table from the database
-	// pub fn table<T>(&self, name: &'static str) -> Table<T>
-	// where
-	// 	T: TableTemplate,
-	// {
-	// 	Table::new(self.pool.clone(), name)
-	// }
+	/// Get a table from the database
+	pub fn table<T>(&self, name: &'static str) -> Table<T>
+	where
+		T: TableTemplate,
+	{
+		Table::new(self.clone(), name)
+	}
 }
