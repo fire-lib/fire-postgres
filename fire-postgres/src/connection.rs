@@ -20,6 +20,7 @@ use tracing::error;
 use crate::query::Filter;
 use crate::query::Limit;
 use crate::row::FromRowOwned;
+use crate::row::NamedColumns;
 use crate::row::RowStream;
 use crate::try2;
 
@@ -118,7 +119,7 @@ impl Connection<'_> {
 		filter: impl Borrow<Filter<'_>>,
 	) -> Result<Vec<R>, Error>
 	where
-		R: FromRowOwned,
+		R: FromRowOwned + NamedColumns,
 	{
 		let sql = format!(
 			"SELECT {} FROM \"{}\"{}",
@@ -146,7 +147,7 @@ impl Connection<'_> {
 		filter: impl Borrow<Filter<'_>>,
 	) -> Result<R, Error>
 	where
-		R: FromRowOwned,
+		R: FromRowOwned + NamedColumns,
 	{
 		let mut formatter = filter.borrow().to_formatter();
 
@@ -177,7 +178,7 @@ impl Connection<'_> {
 		filter: impl Borrow<Filter<'_>>,
 	) -> Result<Option<R>, Error>
 	where
-		R: FromRowOwned,
+		R: FromRowOwned + NamedColumns,
 	{
 		let mut formatter = filter.borrow().to_formatter();
 

@@ -1,3 +1,8 @@
+use types::{
+	time::{Date, DateTime, Timeout},
+	uid::UniqueId,
+};
+
 use super::ColumnKind;
 
 pub trait ColumnType: Sized {
@@ -42,6 +47,30 @@ impl ColumnType for Vec<String> {
 	#[inline(always)]
 	fn column_kind() -> ColumnKind {
 		ColumnKind::TextArray
+	}
+}
+
+impl ColumnType for UniqueId {
+	fn column_kind() -> ColumnKind {
+		ColumnKind::FixedText(14)
+	}
+}
+
+impl ColumnType for Date {
+	fn column_kind() -> ColumnKind {
+		ColumnKind::Date
+	}
+}
+
+impl ColumnType for DateTime {
+	fn column_kind() -> ColumnKind {
+		ColumnKind::Timestamp
+	}
+}
+
+impl ColumnType for Timeout {
+	fn column_kind() -> ColumnKind {
+		ColumnKind::I64
 	}
 }
 

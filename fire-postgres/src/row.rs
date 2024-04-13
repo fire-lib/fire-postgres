@@ -13,9 +13,6 @@ pub use tokio_postgres::Column;
 use crate::connection::Error;
 
 pub trait FromRowOwned: Sized {
-	/// should return something like ""id", "name", "email""
-	fn select_columns() -> &'static str;
-
 	fn from_row_owned(
 		row: Row,
 	) -> Result<Self, Box<dyn StdError + Sync + Send>>;
@@ -25,11 +22,6 @@ impl<T> FromRowOwned for T
 where
 	T: for<'r> FromRow<'r>,
 {
-	/// should return something like "id, name, email"
-	fn select_columns() -> &'static str {
-		T::select_columns()
-	}
-
 	fn from_row_owned(
 		row: Row,
 	) -> Result<Self, Box<dyn StdError + Sync + Send>> {
@@ -38,10 +30,12 @@ where
 }
 
 pub trait FromRow<'r>: Sized {
-	/// should return something like "id, name, email"
-	fn select_columns() -> &'static str;
-
 	fn from_row(row: &'r Row) -> Result<Self, Box<dyn StdError + Sync + Send>>;
+}
+
+pub trait NamedColumns {
+	/// should return something like "id", "name", "email"
+	fn select_columns() -> &'static str;
 }
 
 #[derive(Debug)]
@@ -123,10 +117,6 @@ impl From<tokio_postgres::Row> for Row {
 }
 
 impl FromRowOwned for Row {
-	fn select_columns() -> &'static str {
-		"*"
-	}
-
 	fn from_row_owned(
 		row: Row,
 	) -> Result<Self, Box<dyn StdError + Sync + Send>> {

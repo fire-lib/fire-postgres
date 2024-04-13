@@ -20,7 +20,7 @@ pub use types::uid::UniqueId;
 
 pub mod query;
 
-pub use fire_postgres_derive::TableTempl;
+pub use fire_postgres_derive::{FromRow, TableTempl};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
