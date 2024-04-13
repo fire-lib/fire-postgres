@@ -3,6 +3,9 @@ pub use info::Info;
 
 pub mod column;
 
+pub mod table_owned;
+pub use table_owned::TableOwned;
+
 pub mod table;
 pub use table::Table;
 

@@ -1,226 +1,107 @@
-use super::util::info_data_to_sql;
-use super::{Info, TableTemplate};
+use std::borrow::{Borrow, Cow};
 
-use crate::connection::OwnedConnection;
-use crate::database::DatabaseError;
-use crate::filter::{Filter, WhereFilter};
-use crate::update::ToUpdate;
-use crate::{filter, Database, Error, Result, Row};
+use crate::{
+	filter::{Filter, WhereFilter},
+	row::{FromRowOwned, NamedColumns},
+	update::ToUpdate,
+	Connection, Error,
+};
 
-use std::borrow::Borrow;
-use std::marker::PhantomData;
-use std::sync::Arc;
-
-// is thread safe
-// maybe should change to an inner?
-macro_rules! debug_sql {
-	($method:expr, $name:expr, $sql:expr) => {
-		tracing::debug!("sql: {} {} with {}", $method, $name, $sql);
-	};
+#[derive(Debug, Clone)]
+pub struct Table {
+	name: Cow<'static, str>,
 }
 
-#[derive(Debug)]
-struct TableMeta {
-	info: Info,
+impl Table {
+	pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
+		Self { name: name.into() }
+	}
+
+	pub fn with_conn<'a>(&'a self, conn: Connection<'a>) -> TableWithConn<'a> {
+		TableWithConn { table: &self, conn }
+	}
 }
 
-#[derive(Debug)]
-pub struct Table<T>
-where
-	T: TableTemplate,
-{
-	db: Database,
-	name: &'static str,
-	meta: Arc<TableMeta>,
-	phantom: PhantomData<T>,
+#[derive(Debug, Clone)]
+pub struct TableWithConn<'a> {
+	table: &'a Table,
+	conn: Connection<'a>,
 }
 
-impl<T> Table<T>
-where
-	T: TableTemplate,
-{
-	pub(crate) fn new(db: Database, name: &'static str) -> Self {
-		let info = T::table_info();
-		let meta = TableMeta { info };
-
-		Self {
-			db,
-			name,
-			meta: Arc::new(meta),
-			phantom: PhantomData,
-		}
+impl TableWithConn<'_> {
+	/// Get the name of the table
+	pub fn name(&self) -> &str {
+		self.table.name.as_ref()
 	}
 
-	pub fn name(&self) -> &'static str {
-		self.name
-	}
-
-	pub fn info(&self) -> &Info {
-		&self.meta.info
-	}
-
-	pub async fn get_conn(&self) -> Result<OwnedConnection> {
-		self.db.get().await.map_err(|e| match e {
-			DatabaseError::Other(e) => e.into(),
-			e => Error::Unknown(e.into()),
-		})
-	}
-
-	// Create
-	pub async fn try_create(&self) -> Result<()> {
-		let sql = info_data_to_sql(self.name, self.meta.info.data());
-
-		self.get_conn()
-			.await?
-			.connection()
-			.batch_execute(sql.as_str())
-			.await
-	}
-
-	/// ## Panics
-	/// if the table could not be created
-	pub async fn create(self) -> Self {
-		self.try_create().await.expect("could not create table");
-		self
-	}
-
-	// find
-	// maybe rename to insert
-	// and store statement in table
-	pub async fn insert_one(&self, input: &T) -> Result<()> {
-		self.get_conn()
-			.await?
-			.connection()
-			.insert(self.name, input)
-			.await
-	}
-
-	pub async fn insert_many<'a, I>(&self, input: I) -> Result<()>
+	pub async fn select<R>(
+		&self,
+		filter: impl Borrow<Filter<'_>>,
+	) -> Result<Vec<R>, Error>
 	where
-		T: 'a,
-		I: IntoIterator<Item = &'a T>,
+		R: FromRowOwned + NamedColumns,
 	{
-		let mut conn = self.get_conn().await?;
-		let trans = conn.transaction().await?;
-		let conn = trans.connection();
-
-		conn.insert_many(self.name, input).await?;
-
-		trans.commit().await?;
-
-		Ok(())
+		self.conn.select(self.name(), filter).await
 	}
 
-	/*
-	SELECT id, name, FROM {}
-	*/
-	pub async fn find_all(&self) -> Result<Vec<T>> {
-		self.get_conn()
-			.await?
-			.connection()
-			.select(self.name, filter!())
-			.await
-	}
-
-	pub async fn find_many(
+	pub async fn select_one<R>(
 		&self,
 		filter: impl Borrow<Filter<'_>>,
-	) -> Result<Vec<T>> {
-		self.get_conn()
-			.await?
-			.connection()
-			.select(self.name, filter)
-			.await
+	) -> Result<R, Error>
+	where
+		R: FromRowOwned + NamedColumns,
+	{
+		self.conn.select_one(self.name(), filter).await
 	}
 
-	pub async fn find_one(
+	pub async fn select_opt<R>(
 		&self,
 		filter: impl Borrow<Filter<'_>>,
-	) -> Result<Option<T>> {
-		self.get_conn()
-			.await?
-			.connection()
-			.select_opt(self.name, filter)
-			.await
+	) -> Result<Option<R>, Error>
+	where
+		R: FromRowOwned + NamedColumns,
+	{
+		self.conn.select_opt(self.name(), filter).await
 	}
 
-	pub async fn count_many<'a>(
+	pub async fn count(
 		&self,
+		column: &str,
 		filter: impl Borrow<Filter<'_>>,
-	) -> Result<u32> {
-		let sql = format!(
-			"SELECT COUNT(*) FROM \"{}\"{}",
-			self.name,
-			filter.borrow()
-		);
-
-		debug_sql!("count_many", self.name, sql);
-
-		let row: Option<Row> = {
-			self.get_conn()
-				.await?
-				.connection()
-				.query_raw_opt(
-					sql.as_str(),
-					filter.borrow().params.iter_to_sql(),
-				)
-				.await?
-		};
-
-		Ok(row.map(|row| row.get(0)).unwrap_or(0))
+	) -> Result<u32, Error> {
+		self.conn.count(self.name(), column, filter).await
 	}
 
-	// update one
-	pub async fn update<'a, U>(
-		&self,
-		item: &U,
-		filter: impl Borrow<WhereFilter<'a>>,
-	) -> Result<()>
+	pub async fn insert<U>(&self, item: &U) -> Result<(), Error>
 	where
 		U: ToUpdate,
 	{
-		self.get_conn()
-			.await?
-			.connection()
-			.update(self.name, item, filter)
-			.await
+		self.conn.insert(self.name(), item).await
 	}
 
-	pub async fn update_full<'a>(
+	pub async fn insert_many<'a, U, I>(&self, items: I) -> Result<(), Error>
+	where
+		U: ToUpdate + 'a,
+		I: IntoIterator<Item = &'a U>,
+	{
+		self.conn.insert_many(self.name(), items).await
+	}
+
+	pub async fn update<U>(
 		&self,
-		input: &'a T,
-		filter: impl Borrow<WhereFilter<'a>>,
-	) -> Result<()> {
-		self.get_conn()
-			.await?
-			.connection()
-			.update(self.name, input, filter)
-			.await
+		item: &U,
+		filter: impl Borrow<WhereFilter<'_>>,
+	) -> Result<(), Error>
+	where
+		U: ToUpdate,
+	{
+		self.conn.update(self.name(), item, filter).await
 	}
 
-	// delete one
 	pub async fn delete(
 		&self,
 		filter: impl Borrow<WhereFilter<'_>>,
-	) -> Result<()> {
-		self.get_conn()
-			.await?
-			.connection()
-			.delete(self.name, filter)
-			.await
-	}
-}
-
-impl<T> Clone for Table<T>
-where
-	T: TableTemplate,
-{
-	fn clone(&self) -> Self {
-		Self {
-			db: self.db.clone(),
-			name: self.name,
-			meta: self.meta.clone(),
-			phantom: PhantomData,
-		}
+	) -> Result<(), Error> {
+		self.conn.delete(self.name(), filter).await
 	}
 }

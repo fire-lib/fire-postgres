@@ -7,7 +7,7 @@ pub use deadpool::managed::TimeoutType;
 pub use deadpool_postgres::{Config, ConfigError};
 
 use crate::connection::OwnedConnection;
-use crate::table::Table;
+use crate::table::TableOwned;
 use crate::table::TableTemplate;
 
 #[derive(Debug, thiserror::Error)]
@@ -90,10 +90,10 @@ impl Database {
 	}
 
 	/// Get a table from the database
-	pub fn table<T>(&self, name: &'static str) -> Table<T>
+	pub fn table_owned<T>(&self, name: &'static str) -> TableOwned<T>
 	where
 		T: TableTemplate,
 	{
-		Table::new(self.clone(), name)
+		TableOwned::new(self.clone(), name)
 	}
 }
