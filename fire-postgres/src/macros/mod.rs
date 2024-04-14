@@ -1,6 +1,5 @@
-/// non public facing utils for macros
 #[doc(hidden)]
-pub mod utils;
+pub use postgres_types::ToSql;
 
 /// ## Example
 /// ```

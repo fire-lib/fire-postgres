@@ -15,18 +15,20 @@ pub use row::Row;
 pub mod table;
 // pub use table::Table;
 
+#[cfg(feature = "json")]
+pub use types::json;
 pub use types::time;
 pub use types::uid::UniqueId;
 
 pub mod filter;
-pub mod update;
 
 pub mod migrations;
 
-pub use fire_postgres_derive::{FromRow, TableTempl, ToUpdate};
+pub use fire_postgres_derive::{row, FromRow, TableTempl, ToRow};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-mod macros;
+#[doc(hidden)]
+pub mod macros;
 
-// mod impl_crypto;
+mod impl_crypto;

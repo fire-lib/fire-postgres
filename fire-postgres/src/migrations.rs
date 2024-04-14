@@ -7,18 +7,12 @@
 
 use crate::{connection::ConnectionOwned, filter, table::Table, Error};
 
-use fire_postgres_derive::{FromRow, ToUpdate};
+use fire_postgres_derive::{row, FromRow};
 use tracing::debug;
 use types::time::DateTime;
 
 #[derive(Debug, FromRow)]
 pub struct ExecutedMigration {
-	datetime: DateTime,
-}
-
-#[derive(Debug, ToUpdate)]
-struct Insert<'a> {
-	name: &'a str,
 	datetime: DateTime,
 }
 
@@ -79,9 +73,9 @@ impl Migrations {
 		conn.batch_execute(&sql).await?;
 
 		table
-			.insert(&Insert {
+			.insert(row! {
 				name,
-				datetime: DateTime::now(),
+				"datetime": DateTime::now(),
 			})
 			.await?;
 
