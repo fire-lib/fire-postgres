@@ -6,6 +6,7 @@ authors = ["Sören Meier <info@soerenmeier.ch>"]
 homepage = "https://fire-lib.com/"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+# only for default features and serde, json, postgres
 rust-version = "1.67"
 
 [features]
