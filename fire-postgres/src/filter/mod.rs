@@ -59,13 +59,9 @@ pub(crate) struct FilterFormatter<'a> {
 
 impl fmt::Display for FilterFormatter<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		if !self.whr.is_empty() {
-			write!(f, " WHERE {}", self.whr)?;
-		}
+		self.whr.fmt(f)?;
 
-		if !self.order_by.is_empty() {
-			write!(f, " ORDER BY {}", self.order_by)?;
-		}
+		self.order_by.fmt(f)?;
 
 		let offset_has_param = matches!(self.offset, Offset::Param);
 		let param_count =
@@ -109,11 +105,7 @@ impl<'a> WhereFilter<'a> {
 
 impl fmt::Display for WhereFilter<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		if !self.whr.is_empty() {
-			write!(f, " WHERE {}", self.whr)?;
-		}
-
-		Ok(())
+		self.whr.fmt(f)
 	}
 }
 
@@ -144,7 +136,7 @@ pub enum Operator {
 	Gt,
 	Gte,
 	Like,
-	In,
+	In { length: usize },
 
 	// rhs will be ignored
 	IsNull,
@@ -193,6 +185,12 @@ pub(crate) struct WhereFormatter<'a> {
 
 impl<'a> fmt::Display for WhereFormatter<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		if self.whr.is_empty() {
+			return Ok(());
+		}
+
+		f.write_str(" WHERE ")?;
+
 		let mut param_num = self.param_start;
 
 		for part in &self.whr.inner {
@@ -202,6 +200,20 @@ impl<'a> fmt::Display for WhereFormatter<'a> {
 				WherePart::Operation(op) => match &op.kind {
 					Operator::IsNull | Operator::IsNotNull => {
 						write!(f, "\"{}\" {}", op.column, op.kind.as_str())?;
+					}
+					Operator::In { length } => {
+						write!(f, "\"{}\" IN (", op.column)?;
+
+						for i in 0..*length {
+							if i != 0 {
+								f.write_str(", ")?;
+							}
+
+							param_num += 1;
+							write!(f, "${}", param_num)?;
+						}
+
+						f.write_str(")")?;
 					}
 					o => {
 						param_num += 1;
@@ -238,7 +250,7 @@ impl Operator {
 			Operator::Gt => ">",
 			Operator::Gte => ">=",
 			Operator::Like => "LIKE",
-			Operator::In => "IN",
+			Operator::In { .. } => "IN",
 			Operator::IsNull => "IS NULL",
 			Operator::IsNotNull => "IS NOT NULL",
 		}
@@ -276,6 +288,12 @@ impl OrderBy {
 
 impl fmt::Display for OrderBy {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		if self.is_empty() {
+			return Ok(());
+		}
+
+		f.write_str(" ORDER BY ")?;
+
 		for (i, part) in self.inner.iter().enumerate() {
 			if i != 0 {
 				f.write_str(", ")?;
@@ -365,6 +383,7 @@ impl<'a> Params<'a> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct Param<'a> {
+	// todo is the name still needed?
 	pub name: &'static str,
 	pub data: CowParamData<'a>,
 	is_null: bool,
@@ -373,7 +392,7 @@ pub struct Param<'a> {
 impl<'a> Param<'a> {
 	pub fn new<T>(name: &'static str, data: &'a T) -> Self
 	where
-		T: ParamData + ToSql + Sync,
+		T: ParamData + ToSql + Send + Sync,
 	{
 		Self {
 			name,
@@ -384,7 +403,7 @@ impl<'a> Param<'a> {
 
 	pub fn new_owned<T>(name: &'static str, data: T) -> Self
 	where
-		T: ParamData + ToSql + Sync + 'static,
+		T: ParamData + ToSql + Send + Sync + 'static,
 	{
 		Self {
 			name,
@@ -400,8 +419,8 @@ impl<'a> Param<'a> {
 
 #[derive(Debug)]
 pub enum CowParamData<'a> {
-	Borrowed(&'a (dyn ToSql + Sync)),
-	Owned(Box<dyn ToSql + Sync>),
+	Borrowed(&'a (dyn ToSql + Send + Sync)),
+	Owned(Box<dyn ToSql + Send + Sync>),
 }
 
 impl<'a> CowParamData<'a> {
@@ -467,7 +486,7 @@ where
 #[macro_export]
 macro_rules! param_not_null {
 	($impl_for:ty) => {
-		impl ParamData for $impl_for {
+		impl $crate::filter::ParamData for $impl_for {
 			fn is_null(&self) -> bool {
 				false
 			}

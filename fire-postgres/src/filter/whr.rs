@@ -122,7 +122,7 @@ macro_rules! filter_inner {
 	);
 	// in
 	($f:ident, $name:literal IN $($tt:tt)+) => (
-		$crate::short_whr_in_comp!($f, $name, $value, $($tt)*);
+		$crate::whr_comp_in!($f, $name, $($tt)*);
 	);
 }
 
@@ -193,23 +193,30 @@ macro_rules! whr_comp {
 
 #[doc(hidden)]
 #[macro_export]
-macro_rules! short_whr_in_comp {
-	($s:ident, $name:expr, $value:expr, $($tt:tt)*) => (
-		if $value.iter().len() > 0 {
-			$s.no_space(format!("\"{}\" IN (", $name));
-			let end = $value.iter().len() - 1;
-			for (i, v) in $value.iter().enumerate() {
-				$s.param();
-				$p.push($crate::filter::Param::new($name, v));
-				if i != end {
-					$s.space_after(",");
-				}
+macro_rules! whr_comp_in {
+	($f:ident, $name:expr, &$value:tt $($tt:tt)*) => (
+		$crate::whr_comp_in!(two; $f, $name, &$value, $($tt)*);
+	);
+	($f:ident, $name:expr, $value:tt $($tt:tt)*) => (
+		$crate::whr_comp_in!(two; $f, $name, $value, $($tt)*);
+	);
+
+	(two; $f:ident, $name:expr, $value:expr, $($tt:tt)*) => (
+		{
+			let mut c = 0;
+			for val in $value {
+				c += 1;
+				let param = $crate::filter::Param::new($name, val);
+				$f.params.push(param);
 			}
-			$s.no_space(")");
-		} else {
-			$s.space_after(format!("\"{}\" IS NULL", $name));
+
+			$f.whr.push($crate::filter::WhereOperation {
+				kind: $crate::filter::Operator::In { length: c },
+				column: $name.into()
+			});
 		}
-		$crate::whr_log!($s, $($tt)*);
+
+		$crate::whr_log!($f, $($tt)*);
 	);
 }
 

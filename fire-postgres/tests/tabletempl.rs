@@ -1,8 +1,8 @@
 use fire_postgres::row::NamedColumns;
-use fire_postgres::update::ToUpdate;
-use fire_postgres::{FromRow, TableTempl, ToUpdate, UniqueId};
+use fire_postgres::row::ToRow;
+use fire_postgres::{FromRow, TableTempl, ToRow, UniqueId};
 
-#[derive(Debug, TableTempl, FromRow, ToUpdate)]
+#[derive(Debug, TableTempl, FromRow, ToRow)]
 pub struct Table {
 	#[index(primary)]
 	pub id: UniqueId,

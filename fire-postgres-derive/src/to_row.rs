@@ -15,7 +15,7 @@ macro_rules! err {
 	};
 }
 
-pub fn expand_to_update(
+pub fn expand_to_row(
 	input: &DeriveInput,
 	name: &TokenStream,
 ) -> Result<proc_macro::TokenStream> {
@@ -25,7 +25,8 @@ pub fn expand_to_update(
 				let (impl_gens, ty_gens, where_clause) =
 					input.generics.split_for_impl();
 
-				let update = quote!(#name::update);
+				let row = quote!(#name::row);
+				let macros = quote!(#name::macros);
 				let ident = &input.ident;
 
 				let mut insert_columns = String::new();
@@ -49,13 +50,13 @@ pub fn expand_to_update(
 						.unwrap();
 
 					params.extend(quote!(
-						&self.#ident as &(dyn #update::ToSql + std::marker::Sync),
+						&self.#ident as &(dyn #macros::ToSql + std::marker::Sync),
 					));
 				}
 
 				let fields_len = fields.named.len();
 				let toks = quote!(
-					impl #impl_gens #update::ToUpdate for #ident #ty_gens #where_clause {
+					impl #impl_gens #row::ToRow for #ident #ty_gens #where_clause {
 						fn insert_columns() -> &'static str {
 							#insert_columns
 						}
@@ -72,7 +73,7 @@ pub fn expand_to_update(
 							#fields_len
 						}
 
-						fn params(&self) -> impl std::iter::ExactSizeIterator<Item=&(dyn #update::ToSql + std::marker::Sync)> {
+						fn params(&self) -> impl std::iter::ExactSizeIterator<Item=&(dyn #macros::ToSql + std::marker::Sync)> {
 							[
 								#params
 							].into_iter()

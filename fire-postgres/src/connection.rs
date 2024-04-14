@@ -2,6 +2,7 @@
 
 use std::borrow::Borrow;
 
+use deadpool_postgres::Metrics;
 use deadpool_postgres::{ClientWrapper, Object};
 
 use futures_util::pin_mut;
@@ -23,8 +24,8 @@ use crate::filter::WhereFilter;
 use crate::row::FromRowOwned;
 use crate::row::NamedColumns;
 use crate::row::RowStream;
+use crate::row::ToRow;
 use crate::try2;
-use crate::update::ToUpdate;
 use crate::Row;
 
 #[derive(Debug, thiserror::Error)]
@@ -72,10 +73,16 @@ impl ConnectionOwned {
 		}
 	}
 
-	pub async fn transaction(&mut self) -> Result<Transaction, Error> {
+	pub async fn transaction<'a>(
+		&'a mut self,
+	) -> Result<Transaction<'a>, Error> {
 		Ok(Transaction {
 			inner: self.0.transaction().await.map_err(Error::from)?,
 		})
+	}
+
+	pub fn metrics(&self) -> &Metrics {
+		Object::metrics(&self.0)
 	}
 }
 
@@ -86,7 +93,7 @@ pub struct Transaction<'a> {
 
 impl<'a> Transaction<'a> {
 	/// Returns a connection to the database
-	pub fn connection(&self) -> Connection {
+	pub fn connection(&self) -> Connection<'_> {
 		Connection {
 			inner: ConnectionInner::Transaction(&self.inner),
 		}
@@ -116,6 +123,11 @@ enum ConnectionInner<'a> {
 
 impl Connection<'_> {
 	// select
+
+	// how about the columns are a separat parameter, which contains
+	// an exact size iterator, and implementors can call
+	// select("table", R::select_columns(), filter)
+	// or select("table", &["column1", "column2"], filter)
 	pub async fn select<R>(
 		&self,
 		table: &str,
@@ -162,7 +174,7 @@ impl Connection<'_> {
 			"SELECT {} FROM \"{}\"{}",
 			R::select_columns(),
 			table,
-			filter.borrow()
+			formatter
 		);
 		let stmt = self.prepare_cached(&sql).await?;
 
@@ -193,7 +205,7 @@ impl Connection<'_> {
 			"SELECT {} FROM \"{}\"{}",
 			R::select_columns(),
 			table,
-			filter.borrow()
+			formatter
 		);
 		let stmt = self.prepare_cached(&sql).await?;
 
@@ -230,7 +242,7 @@ impl Connection<'_> {
 	// insert one
 	pub async fn insert<U>(&self, table: &str, item: &U) -> Result<(), Error>
 	where
-		U: ToUpdate,
+		U: ToRow,
 	{
 		let sql = format!(
 			"INSERT INTO \"{}\" ({}) VALUES ({})",
@@ -244,14 +256,15 @@ impl Connection<'_> {
 	}
 
 	// insert_many
-	pub async fn insert_many<'a, U, I>(
+	pub async fn insert_many<U, I>(
 		&self,
 		table: &str,
 		items: I,
 	) -> Result<(), Error>
 	where
-		U: ToUpdate + 'a,
-		I: IntoIterator<Item = &'a U>,
+		U: ToRow,
+		I: IntoIterator,
+		I::Item: Borrow<U>,
 	{
 		let sql = format!(
 			"INSERT INTO \"{}\" ({}) VALUES ({})",
@@ -262,7 +275,7 @@ impl Connection<'_> {
 		let stmt = self.prepare_cached(&sql).await?;
 
 		for item in items {
-			self.execute_raw(&stmt, item.params()).await?;
+			self.execute_raw(&stmt, item.borrow().params()).await?;
 		}
 
 		Ok(())
@@ -276,7 +289,7 @@ impl Connection<'_> {
 		filter: impl Borrow<WhereFilter<'_>>,
 	) -> Result<(), Error>
 	where
-		U: ToUpdate,
+		U: ToRow,
 	{
 		let filter = filter.borrow();
 		let mut formatter = filter.whr.to_formatter();
@@ -462,14 +475,16 @@ impl Connection<'_> {
 		let stream = self.query_raw(statement, params).await?;
 		pin_mut!(stream);
 
-		let row = stream.try_next().await?;
+		let row = match stream.try_next().await? {
+			Some(row) => row,
+			None => return Ok(None),
+		};
 
 		if stream.try_next().await?.is_some() {
 			return Err(Error::ExpectedOneRow);
 		}
 
-		row.map(|row| R::from_row_owned(row).map_err(Error::Deserialize))
-			.transpose()
+		R::from_row_owned(row).map(Some).map_err(Error::Deserialize)
 	}
 
 	/// See [`tokio_postgres::Client::query_raw()`]

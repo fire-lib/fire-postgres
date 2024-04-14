@@ -8,7 +8,7 @@ use super::{Info, TableTemplate};
 use crate::connection::ConnectionOwned;
 use crate::database::DatabaseError;
 use crate::filter::{Filter, WhereFilter};
-use crate::update::ToUpdate;
+use crate::row::ToRow;
 use crate::{filter, Database, Error, Result};
 
 use std::borrow::Borrow;
@@ -55,7 +55,7 @@ where
 		&self.meta.info
 	}
 
-	pub async fn get_conn(&self) -> Result<ConnectionOwned> {
+	pub async fn get_connection(&self) -> Result<ConnectionOwned> {
 		self.db.get().await.map_err(|e| match e {
 			DatabaseError::Other(e) => e.into(),
 			e => Error::Unknown(e.into()),
@@ -66,7 +66,7 @@ where
 	pub async fn try_create(&self) -> Result<()> {
 		let sql = info_data_to_sql(self.name, self.meta.info.data());
 
-		self.get_conn()
+		self.get_connection()
 			.await?
 			.connection()
 			.batch_execute(sql.as_str())
@@ -84,19 +84,19 @@ where
 	// maybe rename to insert
 	// and store statement in table
 	pub async fn insert_one(&self, input: &T) -> Result<()> {
-		self.get_conn()
+		self.get_connection()
 			.await?
 			.connection()
 			.insert(self.name, input)
 			.await
 	}
 
-	pub async fn insert_many<'a, I>(&self, input: I) -> Result<()>
+	pub async fn insert_many<I>(&self, input: I) -> Result<()>
 	where
-		T: 'a,
-		I: IntoIterator<Item = &'a T>,
+		I: IntoIterator,
+		I::Item: Borrow<T>,
 	{
-		let mut conn = self.get_conn().await?;
+		let mut conn = self.get_connection().await?;
 		let trans = conn.transaction().await?;
 		let conn = trans.connection();
 
@@ -111,7 +111,7 @@ where
 	SELECT id, name, FROM {}
 	*/
 	pub async fn find_all(&self) -> Result<Vec<T>> {
-		self.get_conn()
+		self.get_connection()
 			.await?
 			.connection()
 			.select(self.name, filter!())
@@ -122,7 +122,7 @@ where
 		&self,
 		filter: impl Borrow<Filter<'_>>,
 	) -> Result<Vec<T>> {
-		self.get_conn()
+		self.get_connection()
 			.await?
 			.connection()
 			.select(self.name, filter)
@@ -133,7 +133,7 @@ where
 		&self,
 		filter: impl Borrow<Filter<'_>>,
 	) -> Result<Option<T>> {
-		self.get_conn()
+		self.get_connection()
 			.await?
 			.connection()
 			.select_opt(self.name, filter)
@@ -145,7 +145,7 @@ where
 		column: &str,
 		filter: impl Borrow<Filter<'_>>,
 	) -> Result<u32> {
-		self.get_conn()
+		self.get_connection()
 			.await?
 			.connection()
 			.count(self.name, column, filter)
@@ -159,9 +159,9 @@ where
 		filter: impl Borrow<WhereFilter<'a>>,
 	) -> Result<()>
 	where
-		U: ToUpdate,
+		U: ToRow,
 	{
-		self.get_conn()
+		self.get_connection()
 			.await?
 			.connection()
 			.update(self.name, item, filter)
@@ -173,7 +173,7 @@ where
 		input: &'a T,
 		filter: impl Borrow<WhereFilter<'a>>,
 	) -> Result<()> {
-		self.get_conn()
+		self.get_connection()
 			.await?
 			.connection()
 			.update(self.name, input, filter)
@@ -185,7 +185,7 @@ where
 		&self,
 		filter: impl Borrow<WhereFilter<'_>>,
 	) -> Result<()> {
-		self.get_conn()
+		self.get_connection()
 			.await?
 			.connection()
 			.delete(self.name, filter)

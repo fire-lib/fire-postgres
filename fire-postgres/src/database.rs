@@ -61,6 +61,10 @@ impl Database {
 	}
 
 	pub async fn with_cfg(cfg: Config) -> Result<Self, DatabaseError> {
+		// cfg.manager = Some(ManagerConfig {
+		// 	recycling_method: deadpool_postgres::RecyclingMethod::Clean,
+		// });
+
 		let pool = cfg.create_pool(Some(Runtime::Tokio1), NoTls).map_err(
 			|e| match e {
 				CreatePoolError::Config(e) => DatabaseError::Config(e),

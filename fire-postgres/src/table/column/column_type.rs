@@ -9,29 +9,29 @@ pub trait ColumnType: Sized {
 	fn column_kind() -> ColumnKind;
 }
 
-macro_rules! imp {
+#[macro_export]
+macro_rules! impl_column_type {
 	($type:ty, $kind:ident) => {
-		impl ColumnType for $type {
+		impl $crate::table::column::ColumnType for $type {
 			#[inline(always)]
-			fn column_kind() -> ColumnKind {
-				ColumnKind::$kind
+			fn column_kind() -> $crate::table::column::ColumnKind {
+				$crate::table::column::ColumnKind::$kind
 			}
 		}
 	};
 }
 
-imp!(String, Text);
-imp!(&str, Text);
+impl_column_type!(String, Text);
+impl_column_type!(&str, Text);
 
-imp!(bool, Boolean);
+impl_column_type!(bool, Boolean);
 
-imp!(f64, F64);
-imp!(f32, F32);
+impl_column_type!(f64, F64);
+impl_column_type!(f32, F32);
 
-imp!(i64, I64);
-imp!(i32, I32);
-imp!(i16, I16);
-imp!(i8, I16);
+impl_column_type!(i64, I64);
+impl_column_type!(i32, I32);
+impl_column_type!(i16, I16);
 
 impl<T> ColumnType for Option<T>
 where

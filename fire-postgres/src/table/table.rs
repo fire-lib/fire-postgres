@@ -2,8 +2,7 @@ use std::borrow::{Borrow, Cow};
 
 use crate::{
 	filter::{Filter, WhereFilter},
-	row::{FromRowOwned, NamedColumns},
-	update::ToUpdate,
+	row::{FromRowOwned, NamedColumns, ToRow},
 	Connection, Error,
 };
 
@@ -74,15 +73,16 @@ impl TableWithConn<'_> {
 
 	pub async fn insert<U>(&self, item: &U) -> Result<(), Error>
 	where
-		U: ToUpdate,
+		U: ToRow,
 	{
 		self.conn.insert(self.name(), item).await
 	}
 
-	pub async fn insert_many<'a, U, I>(&self, items: I) -> Result<(), Error>
+	pub async fn insert_many<U, I>(&self, items: I) -> Result<(), Error>
 	where
-		U: ToUpdate + 'a,
-		I: IntoIterator<Item = &'a U>,
+		U: ToRow,
+		I: IntoIterator,
+		I::Item: Borrow<U>,
 	{
 		self.conn.insert_many(self.name(), items).await
 	}
@@ -93,7 +93,7 @@ impl TableWithConn<'_> {
 		filter: impl Borrow<WhereFilter<'_>>,
 	) -> Result<(), Error>
 	where
-		U: ToUpdate,
+		U: ToRow,
 	{
 		self.conn.update(self.name(), item, filter).await
 	}

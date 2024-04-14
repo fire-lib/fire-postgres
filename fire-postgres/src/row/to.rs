@@ -2,7 +2,7 @@
 #[doc(hidden)]
 pub use postgres_types::ToSql;
 
-pub trait ToUpdate {
+pub trait ToRow {
 	/// should return something like "id", "name", "email"
 	fn insert_columns() -> &'static str;
 	/// should return something like $1, $2, $3
