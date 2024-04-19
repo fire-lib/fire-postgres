@@ -201,6 +201,11 @@ impl<'a> fmt::Display for WhereFormatter<'a> {
 					Operator::IsNull | Operator::IsNotNull => {
 						write!(f, "\"{}\" {}", op.column, op.kind.as_str())?;
 					}
+					// handle in special if the length is zero
+					// in this case we wan't the query to always return no results
+					Operator::In { length } if *length == 0 => {
+						write!(f, "1=0")?;
+					}
 					Operator::In { length } => {
 						write!(f, "\"{}\" IN (", op.column)?;
 
