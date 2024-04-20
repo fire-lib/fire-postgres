@@ -9,10 +9,12 @@ pub use table_owned::TableOwned;
 pub mod table;
 pub use table::Table;
 
-use crate::row::{FromRowOwned, NamedColumns, ToRow};
+use crate::row::{FromRowOwned, NamedColumns, ToRowStatic};
 
 mod util;
 
-pub trait TableTemplate: FromRowOwned + NamedColumns + ToRow + Sized {
+pub trait TableTemplate:
+	FromRowOwned + NamedColumns + ToRowStatic + Sized
+{
 	fn table_info() -> Info;
 }

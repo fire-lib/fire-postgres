@@ -2,7 +2,7 @@ use std::borrow::{Borrow, Cow};
 
 use crate::{
 	filter::{Filter, WhereFilter},
-	row::{FromRowOwned, NamedColumns, ToRow},
+	row::{FromRowOwned, NamedColumns, ToRow, ToRowStatic},
 	Connection, Error,
 };
 
@@ -80,7 +80,7 @@ impl TableWithConn<'_> {
 
 	pub async fn insert_many<U, I>(&self, items: I) -> Result<(), Error>
 	where
-		U: ToRow,
+		U: ToRowStatic,
 		I: IntoIterator,
 		I::Item: Borrow<U>,
 	{

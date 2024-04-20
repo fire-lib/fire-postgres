@@ -1,6 +1,7 @@
 // use crate::table::{Table, TableTemplate};
 
 use std::borrow::Borrow;
+use std::fmt::Write;
 
 use deadpool_postgres::Metrics;
 use deadpool_postgres::{ClientWrapper, Object};
@@ -21,10 +22,10 @@ use tracing::error;
 use crate::filter::Filter;
 use crate::filter::Limit;
 use crate::filter::WhereFilter;
-use crate::row::FromRowOwned;
 use crate::row::NamedColumns;
 use crate::row::RowStream;
-use crate::row::ToRow;
+use crate::row::ToRowStatic;
+use crate::row::{FromRowOwned, ToRow};
 use crate::try2;
 use crate::Row;
 
@@ -244,12 +245,12 @@ impl Connection<'_> {
 	where
 		U: ToRow,
 	{
-		let sql = format!(
-			"INSERT INTO \"{}\" ({}) VALUES ({})",
-			table,
-			U::insert_columns(),
-			U::insert_values()
-		);
+		let mut sql = format!("INSERT INTO \"{table}\" (");
+		item.insert_columns(&mut sql);
+		sql.push_str(") VALUES (");
+		item.insert_values(&mut sql);
+		sql.push(')');
+
 		let stmt = self.prepare_cached(&sql).await?;
 
 		self.execute_raw(&stmt, item.params()).await.map(|_| ())
@@ -262,7 +263,7 @@ impl Connection<'_> {
 		items: I,
 	) -> Result<(), Error>
 	where
-		U: ToRow,
+		U: ToRowStatic,
 		I: IntoIterator,
 		I::Item: Borrow<U>,
 	{
@@ -293,14 +294,12 @@ impl Connection<'_> {
 	{
 		let filter = filter.borrow();
 		let mut formatter = filter.whr.to_formatter();
-		formatter.param_start = U::params_len();
+		formatter.param_start = item.params_len();
 
-		let sql = format!(
-			"UPDATE \"{}\" SET {}{}",
-			table,
-			U::update_columns(),
-			formatter
-		);
+		let mut sql = format!("UPDATE \"{table}\" SET ");
+		item.update_columns(&mut sql);
+		write!(&mut sql, "{}", formatter).unwrap();
+
 		let stmt = self.prepare_cached(&sql).await?;
 
 		// we need to merge both params

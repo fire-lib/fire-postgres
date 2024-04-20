@@ -3,20 +3,21 @@ mod to;
 
 use std::{
 	error::Error as StdError,
+	fmt::Write,
 	pin::Pin,
 	task::{Context, Poll},
 };
 
 use futures_util::Stream;
 use pin_project_lite::pin_project;
-use postgres_types::FromSql;
+use postgres_types::{FromSql, ToSql};
 use tokio_postgres::row::RowIndex;
 pub use tokio_postgres::Column;
 
 use crate::connection::Error;
 
 pub use from::{FromRow, FromRowOwned};
-pub use to::ToRow;
+pub use to::{ToRow, ToRowStatic};
 
 pub trait NamedColumns {
 	/// should return something like "id", "name", "email"
@@ -137,5 +138,96 @@ impl Stream for RowStream {
 impl From<tokio_postgres::RowStream> for RowStream {
 	fn from(inner: tokio_postgres::RowStream) -> Self {
 		Self { inner }
+	}
+}
+
+#[derive(Debug)]
+pub struct RowBuilder<'a> {
+	inner: Vec<(&'a str, &'a (dyn ToSql + Sync))>,
+}
+
+impl<'a> RowBuilder<'a> {
+	pub fn new() -> Self {
+		Self { inner: Vec::new() }
+	}
+
+	/// Push a new column to the row.
+	///
+	/// ## Note
+	/// Do not use untrusted names this might lead to
+	/// SQL injection.
+	pub fn push(
+		&mut self,
+		name: &'a str,
+		value: &'a (dyn ToSql + Sync),
+	) -> &mut Self {
+		self.inner.push((name, value));
+
+		self
+	}
+}
+
+impl ToRow for RowBuilder<'_> {
+	fn insert_columns(&self, s: &mut String) {
+		for (k, _) in &self.inner {
+			if !s.is_empty() {
+				s.push_str(", ");
+			}
+
+			write!(s, "\"{k}\"").unwrap();
+		}
+	}
+
+	fn insert_values(&self, s: &mut String) {
+		for (i, _) in self.inner.iter().enumerate() {
+			if !s.is_empty() {
+				s.push_str(", ");
+			}
+
+			write!(s, "${}", i + 1).unwrap();
+		}
+	}
+
+	fn update_columns(&self, s: &mut String) {
+		for (i, (k, _)) in self.inner.iter().enumerate() {
+			if !s.is_empty() {
+				s.push_str(", ");
+			}
+
+			write!(s, "\"{k}\" = ${}", i + 1).unwrap();
+		}
+	}
+
+	fn params_len(&self) -> usize {
+		self.inner.len()
+	}
+
+	fn params(&self) -> impl ExactSizeIterator<Item = &(dyn ToSql + Sync)> {
+		self.inner.iter().map(|(_, v)| *v)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_row_builder() {
+		let mut row = RowBuilder::new();
+		row.push("id", &1i32)
+			.push("name", &"test")
+			.push("email", &"test");
+
+		let mut cols = String::new();
+		row.insert_columns(&mut cols);
+		assert_eq!(cols, r#""id", "name", "email""#);
+
+		let mut values = String::new();
+		row.insert_values(&mut values);
+		assert_eq!(values, r#"$1, $2, $3"#);
+
+		let mut update = String::new();
+		row.update_columns(&mut update);
+		assert_eq!(update, r#""id" = $1, "name" = $2, "email" = $3"#);
 	}
 }

@@ -8,7 +8,7 @@ use super::{Info, TableTemplate};
 use crate::connection::ConnectionOwned;
 use crate::database::DatabaseError;
 use crate::filter::{Filter, WhereFilter};
-use crate::row::ToRow;
+use crate::row::ToRowStatic;
 use crate::{filter, Database, Error, Result};
 
 use std::borrow::Borrow;
@@ -159,7 +159,7 @@ where
 		filter: impl Borrow<WhereFilter<'a>>,
 	) -> Result<()>
 	where
-		U: ToRow,
+		U: ToRowStatic,
 	{
 		self.get_connection()
 			.await?

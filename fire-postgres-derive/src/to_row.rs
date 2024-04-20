@@ -56,7 +56,7 @@ pub fn expand_to_row(
 
 				let fields_len = fields.named.len();
 				let toks = quote!(
-					impl #impl_gens #row::ToRow for #ident #ty_gens #where_clause {
+					impl #impl_gens #row::ToRowStatic for #ident #ty_gens #where_clause {
 						fn insert_columns() -> &'static str {
 							#insert_columns
 						}

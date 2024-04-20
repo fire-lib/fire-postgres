@@ -143,7 +143,7 @@ pub fn expand_row(
 				#struct_fields
 			}
 
-			impl #row::ToRow for __RowStruct<'_> {
+			impl #row::ToRowStatic for __RowStruct<'_> {
 				fn insert_columns() -> &'static str {
 					#insert_columns
 				}

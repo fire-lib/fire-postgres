@@ -1,6 +1,7 @@
 use fire_postgres::enum_u16;
+use fire_postgres::row;
 use fire_postgres::row::NamedColumns;
-use fire_postgres::row::ToRow;
+use fire_postgres::row::ToRowStatic;
 use fire_postgres::{FromRow, TableTempl, ToRow, UniqueId};
 
 #[derive(Debug, TableTempl, FromRow, ToRow)]
@@ -33,4 +34,14 @@ fn test_select_columns() {
 #[test]
 fn test_insert_columns() {
 	assert_eq!(Table::insert_columns(), r#""id", "name", "age", "ty""#);
+}
+
+#[test]
+fn test_create_row() {
+	let s = "";
+
+	let _ = row! {
+		"test": "123",
+		s
+	};
 }
