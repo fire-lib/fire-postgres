@@ -125,5 +125,11 @@ macro_rules! enum_u16 {
 				<i32 as $crate::macros::FromSql>::accepts(ty)
 			}
 		}
+
+		impl $crate::filter::ParamData for $name {
+			fn is_null(&self) -> bool {
+				false
+			}
+		}
 	};
 }
