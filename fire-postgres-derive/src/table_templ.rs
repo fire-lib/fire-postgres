@@ -62,7 +62,7 @@ fn parse_named_fields(
 
 fn parse_named_field(
 	field: &Field,
-	#[allow(unused_variables)] crate_name: &TokenStream,
+	crate_name: &TokenStream,
 ) -> Result<TokenStream> {
 	let name = field.ident.as_ref().unwrap().to_string(); // TODO
 

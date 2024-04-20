@@ -1,5 +1,7 @@
 #[doc(hidden)]
-pub use postgres_types::ToSql;
+pub use bytes::BytesMut;
+#[doc(hidden)]
+pub use postgres_types::{to_sql_checked, FromSql, IsNull, ToSql, Type};
 
 /// ## Example
 /// ```
@@ -87,29 +89,41 @@ macro_rules! enum_u16 {
 			fn column_kind() -> $crate::table::column::ColumnKind {
 				$crate::table::column::ColumnKind::I32
 			}
+		}
 
-			// fn to_data(&self) -> $crate::table::column::ColumnData<'_> {
-			// 	$crate::table::column::ColumnData::I32(self.as_u16() as i32)
-			// }
+		impl $crate::macros::ToSql for $name {
+			fn to_sql(
+				&self,
+				ty: &$crate::macros::Type,
+				buf: &mut $crate::macros::BytesMut
+			) -> std::result::Result<$crate::macros::IsNull, Box<dyn std::error::Error + Sync + Send>> {
+				let val = self.as_u16() as i32;
 
-			// fn from_data(
-			// 	data: $crate::table::column::ColumnData
-			// ) -> std::result::Result<Self, $crate::table::column::FromDataError> {
-			// 	use std::convert::TryFrom;
-			// 	use $crate::table::column::FromDataError as __FromDataError;
+				val.to_sql(ty, buf)
+			}
 
-			// 	match data {
-			// 		$crate::table::column::ColumnData::I32(v) => {
-			// 			let num = u16::try_from(v)
-			// 				.map_err(|_| __FromDataError::Custom(
-			// 					"cannot convert i32 to u32"
-			// 				))?;
-			// 			$name::from_u16(num)
-			// 				.map_err(|m| __FromDataError::Custom(m))
-			// 		},
-			// 		_ => Err(__FromDataError::ExpectedType("u32"))
-			// 	}
-			// }
+			fn accepts(ty: &$crate::macros::Type) -> bool {
+				<i32 as $crate::macros::ToSql>::accepts(ty)
+			}
+
+			$crate::macros::to_sql_checked!();
+		}
+
+		impl<'a> $crate::macros::FromSql<'a> for $name {
+			fn from_sql(
+				ty: &$crate::macros::Type,
+				buf: &'a [u8]
+			) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+				let num = <i32 as $crate::macros::FromSql>::from_sql(ty, buf)?;
+				num.try_into()
+					.map_err(|_| "i32 to u16 conversion failed")
+					.and_then(Self::from_u16)
+					.map_err(|m| m.into())
+			}
+
+			fn accepts(ty: &$crate::macros::Type) -> bool {
+				<i32 as $crate::macros::FromSql>::accepts(ty)
+			}
 		}
 	};
 }
