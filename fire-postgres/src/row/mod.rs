@@ -169,8 +169,8 @@ impl<'a> RowBuilder<'a> {
 
 impl ToRow for RowBuilder<'_> {
 	fn insert_columns(&self, s: &mut String) {
-		for (k, _) in &self.inner {
-			if !s.is_empty() {
+		for (i, (k, _)) in self.inner.iter().enumerate() {
+			if i != 0 {
 				s.push_str(", ");
 			}
 
@@ -180,7 +180,7 @@ impl ToRow for RowBuilder<'_> {
 
 	fn insert_values(&self, s: &mut String) {
 		for (i, _) in self.inner.iter().enumerate() {
-			if !s.is_empty() {
+			if i != 0 {
 				s.push_str(", ");
 			}
 
@@ -190,7 +190,7 @@ impl ToRow for RowBuilder<'_> {
 
 	fn update_columns(&self, s: &mut String) {
 		for (i, (k, _)) in self.inner.iter().enumerate() {
-			if !s.is_empty() {
+			if i != 0 {
 				s.push_str(", ");
 			}
 
@@ -226,8 +226,11 @@ mod tests {
 		row.insert_values(&mut values);
 		assert_eq!(values, r#"$1, $2, $3"#);
 
-		let mut update = String::new();
+		let mut update = String::from("UPDATE \"users\" SET ");
 		row.update_columns(&mut update);
-		assert_eq!(update, r#""id" = $1, "name" = $2, "email" = $3"#);
+		assert_eq!(
+			update,
+			r#"UPDATE "users" SET "id" = $1, "name" = $2, "email" = $3"#
+		);
 	}
 }
