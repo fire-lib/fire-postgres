@@ -1,7 +1,7 @@
 [package]
 name = "fire-postgres"
 description = "A wrapper around tokio-postgres to simplify working with Postgres databases."
-version = "0.3.0-beta.6"
+version = "0.3.0-beta.7"
 authors = ["Sören Meier <info@soerenmeier.ch>"]
 homepage = "https://fire-lib.com/"
 edition = "2021"
@@ -19,7 +19,7 @@ json = [
 	"types/json",
 ]
 email = ["dep:email_address"]
-protobuf = ["dep:fire-protobuf"]
+protobuf = ["dep:fire-protobuf", "types/protobuf"]
 graphql = ["dep:juniper"]
 
 [dependencies]
@@ -44,7 +44,7 @@ thiserror = "1.0.58"
 types = { package = "fire-postgres-types", version = "0.1.0-alpha.1", path = "../fire-postgres-types", features = [
 	"postgres",
 ] }
-deadpool = "0.11.2"
+deadpool = "0.12"
 futures-util = "0.3.14"
 pin-project-lite = "0.2.14"
 
